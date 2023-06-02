@@ -8,8 +8,8 @@ See @knuth84 for additional discussion of literate programming.
 1 + 1
 ```
 
-### Maybe a subsection
+## Maybe a subsection
 
-### Subsection 2
+## Subsection 2
 
 # Second Intro

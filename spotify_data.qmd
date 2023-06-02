@@ -1,3 +1,44 @@
+---
+execute:
+  echo: false
+---
+
 # Spotify Data
 
 Some data here.
+
+https://d2l.ai/index.html
+
+```{r}
+library(tidyverse)
+library(GGally)
+library(corrplot)
+
+setwd("H:\\My Drive\\Spotify_Project")
+
+song.data <- read_csv("genre_songs_8.csv")
+
+
+```
+
+```{r}
+summary(song.data)
+head(song.data)
+```
+
+<!-- ```{r} -->
+<!-- library(reticulate) -->
+<!-- repl_python() -->
+<!-- ``` -->
+
+
+<!-- ```{python} -->
+<!-- import pandas as pd -->
+
+<!-- songs = pd.read_csv("H:\My Drive\Spotify_Project\genre_songs_8.csv", encoding = 'unicode_escape') -->
+<!-- ``` -->
+
+<!-- ```{python} -->
+<!-- songs.cols() -->
+<!-- ``` -->
+

@@ -21,7 +21,7 @@ book:
   #   href: https://erik-king-vargas.carrd.co/
   chapters:
     - index.qmd
-    - intro.qmd
+    - part: intro.qmd
     - part: spotify.qmd
       chapters:
       - spotify_data.qmd

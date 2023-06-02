@@ -1,0 +1,1753 @@
+---
+title: "Group 3 Final Project Code"
+author: "Steven Gore, Violeta Lopez, Mark Mohammad,and Erik Vargas"
+date: "9/4/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+load('final_workspace.RData')
+```
+
+## Preliminaries
+
+First, load up all of the libraries we'll use for analysis, read in the .csv containing the data points and modify to our liking. We create 6 individual dataframes of the 6 genres as well for ease of use.
+
+```{r, include = TRUE, message=FALSE}
+# rm(list=ls())
+library(corrplot)
+library(GGally)
+library(tidyverse)
+library(dplyr)
+# library(MASS)
+library(L1pack)
+library(glmnet)
+library(car)
+
+library(ggplot2)
+library(ggfortify)
+library(gridExtra)
+
+library(cowplot)     # allows us to create matrix plots
+
+library(varhandle)   # provides unfactor() function
+library(cluster)     # provides bottom-up clustering support
+library(factoextra)  # support for plotting of clusters
+
+library(dbscan)      # support for the dbscan algorithm
+set.seed(123)        # so we get consistent results for rendering this tutorial
+```
+
+
+```{r}
+# read in the data set
+
+songs <- read.csv('six_genre_features.csv')
+# songs <- read.csv('genres_small.csv')
+attach(songs)
+
+# take only the columns we need for analysis
+used_cols <- c('playlist_subgenre','danceability',
+               'energy','key','loudness','mode','speechiness','acousticness',
+               'instrumentalness', 'valence','tempo','duration_ms','liveness')
+songs <- as.data.frame(songs[, used_cols]) #data frame with the variables used
+
+# change the three categorical variables into factors
+songs$key <- as.factor(songs$key)
+songs$mode <- as.factor(songs$mode)
+#songs$playlist_subgenre <- as.factor(songs$playlist_subgenre)
+
+# rename some predictors
+songs <- songs %>% 
+  rename(duration = duration_ms,
+         genre = playlist_subgenre)
+
+# create predictor subsets
+cat_predictors <- c("genre", "key", "mode")
+cat_used <- select(songs, cat_predictors)
+
+
+#separate out the 9 numerical variables
+num_predictors <- c('danceability', 'energy','loudness','speechiness',
+                    'acousticness', 'instrumentalness', 'valence','tempo','duration','liveness')
+
+
+#train test split
+set.seed(0) 
+
+sampler <- sample(nrow(songs),trunc(nrow(songs)*.80)) # samples index 
+
+train_set <- songs[sampler,]
+test_set <- songs[-sampler,]
+
+# transform the acousticness variable with logarithm
+songs <- songs %>%
+  mutate(acousticness = log(acousticness))
+
+songs[which(songs$instrumentalness==0),]$instrumentalness <- .0000001
+songs <- songs %>%
+  mutate(instrumentalness = log(instrumentalness))
+
+
+songs <- songs %>%
+  mutate(speechiness = log(speechiness))
+num_used <- select(songs, num_predictors)
+
+subgenres <- list("pop", "edm", "r&b", "metal", "rap", "country")
+```
+
+
+
+```{r}
+feature_names <- names(num_used)
+
+songs %>%
+  select(c('genre', feature_names)) %>%
+  pivot_longer(cols = feature_names) %>%
+  ggplot(aes(x = value)) +
+  geom_density(aes(color = genre), alpha = 0.9) +
+  facet_wrap(~name, ncol = 3, scales = 'free') +
+  labs(title = 'Spotify Audio Feature Density - by Genre',
+       x = '', y = 'density') +
+  theme(axis.text.y = element_blank()) + 
+  scale_color_brewer(palette = 'Set1')
+```
+
+
+
+```{r}
+#create subsets of each genre
+pop <- filter(songs, genre == 'pop')
+edm <- filter(songs, genre == 'edm')
+randb <- filter(songs, genre == 'r&b')
+metal <- filter(songs, genre == 'metal')
+rap <- filter(songs, genre == 'rap')
+country <- filter(songs, genre == 'country')
+```
+
+
+
+
+## Some EDA here with plotting and separating out genres with different features
+```{r}
+ggplot(data = songs, mapping = aes(x = valence, y = loudness, color = genre)) +
+  geom_point(mapping = aes(x = tempo, y = energy)) +
+  facet_wrap(~ genre, nrow = 2)
+```
+
+```{r}
+ggplot(data = songs) +
+  geom_boxplot(mapping = aes(acousticness)) +
+  facet_wrap(~ genre, nrow=2)
+```
+
+
+
+```{r}
+# par(mfrow=c(2,3))
+
+ggplot(data = songs,
+       mapping = aes(x = speechiness, y = acousticness, color = genre)) +
+    layer(geom = "point", stat = "identity", position = "identity") +
+    theme_bw() +
+    theme(legend.key = element_blank()) +
+    labs(title = "Original data")
+
+
+ggplot(data = songs,
+       mapping = aes(x = acousticness, y = valence, color = genre)) +
+    layer(geom = "point", stat = "identity", position = "identity") +
+    theme_bw() +
+    theme(legend.key = element_blank()) +
+    labs(title = "Original data")
+
+ggplot(data = songs,
+       mapping = aes(x = duration, y = acousticness, color = genre)) +
+    layer(geom = "point", stat = "identity", position = "identity") +
+    theme_bw() +
+    theme(legend.key = element_blank()) +
+    labs(title = "Original data")
+
+ggplot(data = songs,
+       mapping = aes(x = danceability, y = valence, color = genre)) +
+    layer(geom = "point", stat = "identity", position = "identity") +
+    theme_bw() +
+    theme(legend.key = element_blank()) +
+    labs(title = "Original data")
+
+ggplot(data = songs,
+       mapping = aes(x = tempo, y = acousticness, color = genre)) +
+    layer(geom = "point", stat = "identity", position = "identity") +
+    theme_bw() +
+    theme(legend.key = element_blank()) +
+    labs(title = "Original data")
+
+ggplot(data = songs,
+       mapping = aes(x = danceability, y = energy, color = genre)) +
+    layer(geom = "point", stat = "identity", position = "identity") +
+    theme_bw() +
+    theme(legend.key = element_blank()) +
+    labs(title = "Original data")
+```
+
+
+
+## Looking at possible PCA
+```{r}
+# # Scale the data
+song.matrix <- num_used
+song.matrix <- scale(song.matrix)   # note we scale here and conduct all subsequent clustering analysis on scaled data
+# 
+# # Find the principal components (I like the prcomp function but you could also use princomp)
+# pc <- prcomp(song.matrix)
+# pc
+
+
+
+# Applying princomp() function to the Credit dataset.
+pca1 <- princomp(num_used)
+plot(pca1)
+```
+
+```{r}
+pca1$loadings
+```
+
+```{r}
+pca<- princomp(data.frame(scale(num_used)))
+plot(pca)
+```
+```{r}
+plot(cumsum(pca$sdev^2/sum(pca$sdev^2)))
+```
+
+
+```{r}
+# Plot of Variance Explained
+plot(cumsum(pc$sdev^2/sum(pc$sdev^2)), main = 'Cumulative Variance Explained by Components', 
+     ylab="Explained", xlab="Component")
+```
+
+```{r}
+pc_plot1 <- autoplot(pc, data = songs, main = "Plot of Spotify Data in Principal Components Space")
+pc_plot2 <- autoplot(pc, data = songs, colour = "genre", main = "Plot of Spotify Data in Principal Components Space") 
+
+plot_grid(                                    # uses cowplot library to arrange grid
+  pc_plot1, pc_plot2, 
+  nrow = 1
+)
+```
+This shows the PCA for the numerical predictors in the songs dataset. We may consider taking out some predictors if they don't work well with grouping, or they don't give much information about the data. To do:
+
+- Transform some of the variables: acousticness needs to be log(acousticness)
+- Continue looking at features between all genres
+- Attempt different methods of clustering on the data
+- SVM might be useful. While there are 6 groups, we could make 6 SVMs that classify each genre from the others. i.e. an SVM that classifies music as pop or not, as a part of our project.
+
+## Next K-Means Clustering
+
+```{r}
+# Set a maximum number of groups to explore
+k.max <- 10
+
+# Fit a kmeans cluster for each number of groups and calculate wthin sum of squares
+wss <- sapply(1:k.max, function(k){kmeans(song.matrix, k)$tot.withinss})
+#wss
+
+# Plot the results so we can find the "elbow"
+plot(1:k.max, wss,
+     type="b", pch = 19, frame = FALSE, 
+     xlab="Number of clusters K",
+     ylab="Total within-clusters sum of squares")
+```
+
+```{r}
+# Apply silhouette method to determine clusters
+fviz_nbclust(song.matrix, kmeans, method = "silhouette")
+```
+
+```{r}
+# Calculate the K-Means Clusters 
+km.out <- kmeans(song.matrix, 6, nstart=20)
+# km.out
+
+# Plot of assigned clusters
+fviz_cluster(list(data = song.matrix, cluster = km.out$cluster))
+```
+
+
+```{r}
+# Comparing within sum of squares to between sum of squares
+# Between Cluster Sum of Squares 
+km.out$betweenss
+
+# Within Cluster Sum of Squaeres
+km.out$withinss
+
+# The Ratio
+km.out$withinss/km.out$betweenss
+```
+
+## Accuracy of PCA and clustering
+
+Since we know what genre each song corresponds to, we can test the accuracy of the analysis based on how they were clustered.
+```{r}
+# Compare our results from km.out$cluster with the known values
+results.compare<-data.frame(cbind(as.character(songs$genre), km.out$cluster))
+table(results.compare)
+```
+Indeed there is a lot of misclassification here.
+
+```{r}
+
+kmeans_accuracy <- (21+2+2+9+11+2)/240    # make sure values match table due to results changing each time algorithm is applied
+kmeans_accuracy
+```
+
+## A test on one genre
+
+Lets look at just the metal genre since it seems to be quite different from the other genres when grouped above.
+
+```{r}
+#separate out metal and non-metal songs
+metal_songs <- songs
+metal_songs$genre[metal_songs$genre!='metal'] <- 'nonmetal'
+
+```
+
+```{r}
+
+# metal_songs$genre <- as.factor(metal_songs$genre)
+metal_num <- metal_songs[,num_predictors]
+
+```
+
+
+```{r}
+# Scale the data
+song.matrix <- metal_num
+song.matrix <- scale(song.matrix)   # note we scale here and conduct all subsequent clustering analysis on scaled data
+
+# Find the principal components (I like the prcomp function but you could also use princomp)
+pc <- prcomp(song.matrix)
+pc
+```
+
+```{r}
+# Plot of Variance Explained
+plot(cumsum(pc$sdev^2/sum(pc$sdev^2)), main = 'Cumulative Variance Explained by Components', 
+     ylab="Explained", xlab="Component")
+```
+
+```{r}
+pc_plot1 <- autoplot(pc, data = metal_songs, main = "Plot of Spotify Data in Principal Components Space")
+pc_plot2 <- autoplot(pc, data = metal_songs, colour = "genre", main = "Plot of Spotify Data in Principal Components Space") 
+
+plot_grid(                                    # uses cowplot library to arrange grid
+  pc_plot1, pc_plot2, 
+  nrow = 1
+)
+```
+
+
+```{r}
+# Set a maximum number of groups to explore
+k.max <- 5
+
+# Fit a kmeans cluster for each number of groups and calculate wthin sum of squares
+wss <- sapply(1:k.max, function(k){kmeans(song.matrix, k)$tot.withinss})
+#wss
+
+# Plot the results so we can find the "elbow"
+plot(1:k.max, wss,
+     type="b", pch = 19, frame = FALSE, 
+     xlab="Number of clusters K",
+     ylab="Total within-clusters sum of squares")
+```
+
+
+```{r}
+# Apply silhouette method to determine clusters
+fviz_nbclust(song.matrix, kmeans, method = "silhouette")
+```
+
+
+```{r}
+# Calculate the K-Means Clusters 
+km.out <- kmeans(song.matrix, 2, nstart=20)
+# relabel = c(1,2)
+# km.out$cluster = relabel[km.out$cluster]
+km.out
+
+# Plot of assigned clusters
+fviz_cluster(list(data = song.matrix, cluster = km.out$cluster))
+```
+
+
+```{r}
+# Comparing within sum of squares to between sum of squares
+# Between Cluster Sum of Squares 
+km.out$betweenss
+
+# Within Cluster Sum of Squaeres
+km.out$withinss
+
+# The Ratio
+(1/km.out$withinss)/(1/km.out$betweenss)
+```
+
+```{r}
+# Compare our results from km.out$cluster with the known values
+results.compare<-data.frame(cbind(as.character(metal_songs$genre), km.out$cluster))
+table(results.compare)
+```
+
+```{r}
+metal_songs$genre <- as.factor(metal_songs$genre)
+metal_songs$genre <- relevel(metal_songs$genre, ref = 'metal')
+```
+
+
+
+```{r}
+
+kmeans_accuracy <- (392+1711)/2400    # make sure values match table due to results changing each time algorithm is applied
+kmeans_accuracy
+```
+So, between classifying metal opposed to nonmetal, accuracy is 78.3% which is not bad at all.
+
+```{r}
+km.out$centers
+```
+
+```{r}
+# Map our centerponts in PC space
+kmeans.pc_centerpoints <- data.frame(predict(pc, newdata = km.out$centers))
+
+# Plot our center points n 2D space without class labels
+pc_plot3 <- ggplot(pc$x, aes(x=PC1, y=PC2)) + geom_point() + 
+  ggtitle("K-Means Center points in PC Space") + 
+  geom_point(data =kmeans.pc_centerpoints, aes(x=PC1, y=PC2), colour = "red", shape=23, size=5, fill = "red")
+
+# Plot our center points in 2D space with class labels
+metal_pc<- data.frame(cbind(pc$x, as.character(metal_songs$genre)))
+colnames(metal_pc)[11] <- 'genre'
+metal_pc[,1:10] <- unfactor(metal_pc[,1:10])
+
+pc_plot4 <- ggplot(metal_pc, aes(x=PC1, y=PC2, colour = metal_songs$genre), title = "K-Means Center points in PC Space") + 
+  geom_point() + ggtitle("K-Means Center points in PC Space") + 
+  geom_point(data =kmeans.pc_centerpoints, aes(x=PC1, y=PC2), colour = "black", shape=23, size=5, fill = "black")
+
+
+plot_grid(                                    # uses cowplot library to arrange plot grid
+  pc_plot3, pc_plot4, 
+  nrow = 1
+)
+```
+
+## Hierarchical clustering
+
+```{r}
+d <- dist(song.matrix, method = "euclidean")   # can try different distance metrics
+
+# Hierarchical clustering using Complete Linkage
+hc_agg <- agnes(d, method = "complete" )   # can try different methods here
+hc_agg
+```
+
+```{r}
+# After trying all options, ward is best fit
+hc_ward <- agnes(d, method = "ward" ) 
+hc_ward
+```
+
+```{r}
+# Plot the obtained dendrogram
+pltree(hc_ward, cex = 0.6, hang = -1, main="Ward Linkage")
+```
+
+```{r}
+# Cut tree into 3 groups
+hc_sub_grp <- cutree(hc_ward, k = 2)  # gives us a vector of the cluster assigned for each observation
+# Plot our clusters
+fviz_cluster(list(data = song.matrix, cluster = hc_sub_grp))
+```
+
+```{r}
+# Compare our results from km.out$cluster with the known values
+hcward_results.compare<-data.frame(cbind(as.character(metal_songs$genre), hc_sub_grp))
+table(hcward_results.compare)
+```
+
+
+```{r}
+hc_ward_accuracy <- (392+1912)/2400
+hc_ward_accuracy
+```
+Looks like 96.25% accuracy which is great.
+```{r}
+# Compare our results from km.out$cluster with the known values
+# Conduct divisive (top down) clustering
+hc_divisive <- diana(song.matrix)
+hc_divisive$dc   
+```
+Top down clustering doesn't work as well as bottom up clustering.
+
+## DBSCAN
+
+```{r}
+##### Calculate the epsilon neighborhood - i.e. find optimal eps
+kNNdistplot(song.matrix, k=5) 
+```
+
+
+```{r}
+# Implement DBSCAN
+db = dbscan(song.matrix, eps = 2.5, minPts = 5, borderPoints = FALSE)
+```
+
+```{r}
+# Visualize the results
+fviz_cluster(list(data = song.matrix, cluster = db$cluster))
+```
+
+```{r}
+# Hullplot from dbscan package isn't confused by unassigned cases
+hullplot(song.matrix, db$cluster)
+```
+
+```{r}
+# Compare our results from km.out$cluster with the known values
+dbscan_results.compare<-data.frame(cbind(as.character(metal_songs$genre), db$cluster))
+table(dbscan_results.compare)
+```
+
+```{r}
+dbscan_accuracy <- (165+16)/240
+dbscan_accuracy
+```
+
+About 75.4% accurate whith a lot of missclassification of the metal genre. Don't use this method.
+
+# Neural Net in Keras
+
+First doing a naive model without a training/test split.
+
+```{r}
+nnet_songs <- songs %>% 
+  filter(genre %in% c('metal', 'country'))
+
+```
+```{r}
+nnet_songs$genre <- as.factor(nnet_songs$genre)
+dimnames(x) <- NULL
+```
+
+
+```{r}
+library(keras)
+
+x <- scale(data.matrix(nnet_songs[,2:13]))  
+y <- to_categorical(as.numeric(nnet_songs$genre)-1, 2)  
+
+x.mean <-attributes(x)$'scaled:center'
+x.sd <- attributes(x)$'scaled:scale'
+
+song.keras <- keras_model_sequential() 
+layer_dense(song.keras, units = 50, activation = "relu", input_shape = 12,
+            kernel_regularizer = regularizer_l2(0.001) )        
+
+layer_dense(song.keras, units = 2, activation = "softmax",
+            kernel_regularizer = regularizer_l2(0.001) )          
+compile (song.keras,  loss = "categorical_crossentropy", optimizer = "sgd", metrics = "accuracy")
+                      
+val.rows <- sort (sample(800,160))     
+
+history <- fit(song.keras, 
+               x = x[-val.rows ,  ],  # omit the 30 for training
+               y = y[-val.rows ,  ],
+               validation_data = list(x[val.rows, ], y[val.rows, ] ), 
+               epochs = 300,                 
+               batch_size = 640              
+)
+plot(history) 
+history <- fit(song.keras, 
+               x = x[-val.rows ,  ],  
+               y = y[-val.rows ,  ],
+               validation_data = list(x[val.rows, ], y[val.rows, ] ), 
+               epochs = 300,                
+               batch_size = 40              
+)
+
+c.hat <- predict_classes(song.keras, x) # Predicted classes start at 0,  C/Python style
+table(nnet_songs$genre, levels(nnet_songs$genre)[c.hat + 1]) # Better
+plot(history)
+
+```
+
+
+```{r}
+metal2 <- metal_songs
+metal2$cluster <- km.out$cluster
+summary(metal2)
+```
+
+```{r}
+set.seed(123)  # ensures we all get the sample sample of data for train/test
+
+sampler <- sample(nrow(metal2),trunc(nrow(metal2)*.80)) # samples index 
+Lecture.Train <- metal2[sampler,]
+Lecture.Test <- metal2[-sampler,]
+    
+# Loading the nnet package
+library(nnet)
+# Training the multinomial model
+multinom.fit <- multinom(genre ~ ., data = Lecture.Train)
+```
+
+```{r}
+summary(multinom.fit)
+```
+
+```{r}
+library("broom")
+out <- tidy(multinom.fit)
+out
+```
+
+```{r}
+library(caret)
+predProbLogit <- predict(multinom.fit, type="probs", newdata = Lecture.Test)
+
+predClassLogit <- predict(multinom.fit, newdata = Lecture.Test, "class")
+
+confusionMatrix(predClassLogit, Lecture.Test$genre)
+```
+
+```{r}
+# Package for fitting SVM
+library(e1071)
+
+wts <- 100/table(metal2$genre)
+
+SVM.Tuned <- tune(svm, genre ~ ., data=Lecture.Train, kernel="linear", probability = TRUE,
+               class.weight=wts,  ranges=list(cost=c(0.1,1,10,100),
+               gamma=c(0.5,1,2,3)))
+SVM.Best <- SVM.Tuned$best.model
+# Calculate tuned model performance on the test dataset
+predClassSVMBest <- predict(SVM.Best, Lecture.Test)
+confusionMatrix(predClassSVMBest, Lecture.Test$genre)
+```
+
+```{r}
+# New model libraries
+library(class) # new library for KNN modeling
+library(rpart) # new library for CART modeling
+
+# New package for making pretty pictures of CART trees
+library(rpart.plot)
+
+# Assigning the response 
+train.def <- Lecture.Train$genre
+test.def <- Lecture.Test$genre
+
+# Assign explanatory variables
+test.gc <- model.matrix(~., Lecture.Test[, -5])
+train.gc <- model.matrix(~.,Lecture.Train[,-5])
+
+knn.cross <- tune.knn(x = train.gc, y = train.def, k = 1:40,tunecontrol=tune.control(sampling = "cross"), cross=10)
+knn.boot <- tune.knn(x = train.gc, y = train.def, k = 1:40,tunecontrol=tune.control(sampling = "boot"), cross=10)
+summary(knn.cross)  ## Best k = 18
+```
+
+```{r}
+summary(knn.boot)
+plot(knn.boot)
+plot(knn.cross)
+```
+
+```{r}
+knn.best <-  knn(train.gc, test.gc, train.def, k=14)
+confusionMatrix(knn.best, Lecture.Test$genre)
+```
+
+```{r}
+CART <- rpart(genre ~., data=Lecture.Train)
+summary(CART)
+```
+
+```{r}
+prp(CART)
+```
+
+```{r}
+# Get the probability classes for CART model applied to test dataset
+predClassCART <- predict(CART, newdata = Lecture.Test, type = "class")
+confusionMatrix(predClassCART, Lecture.Test$genre)
+```
+
+```{r}
+library(randomForest)
+RandomForest <- randomForest(genre ~ ., data=Lecture.Train, importance = TRUE, ntrees = 500)
+summary(RandomForest)
+```
+
+```{r}
+# Get the probability of "yes" for default from second column
+predProbRF <- predict(RandomForest, newdata = Lecture.Test, type = "prob")
+
+# Get the predicted class
+predClassRF <- predict(RandomForest, newdata = Lecture.Test, type = "response")
+head(predProbRF)
+```
+
+```{r}
+confusionMatrix(predClassRF , Lecture.Test$genre)
+```
+
+```{r}
+### Variable selection
+importance(RandomForest)
+```
+
+
+```{r}
+save.image(file = "final_workspace.RData")
+```
+
+## Preliminaries
+
+First, load up all of the libraries we'll use for analysis, read in the .csv containing the data points and modify to our liking. We create 6 individual dataframes of the 6 genres as well for ease of use.
+
+
+```{r }
+#library(corrplot)
+library(GGally)
+library(tidyverse)
+library(dplyr)
+#library(L1pack)
+#library(glmnet)
+#library(car)
+
+library(e1071)  # svm
+library(caret)  # confusion matrix
+library(ROCR)   # ROC curves
+library(rpart)  # CART
+library(rpart.plot) # CART tree plot
+library(randomForest)
+library(class)  # KNN
+
+songs <- read.csv('six_genre_features.csv')
+used_cols <- c('playlist_subgenre','danceability',
+               'energy','key','loudness','mode','speechiness','acousticness',
+               'instrumentalness', 'valence','tempo','duration_ms','track.popularity','liveness')
+songs_used <- as.data.frame(songs[, used_cols]) #data frame with the variables used
+songs_used$key <- as.factor(songs_used$key)
+songs_used$mode <- as.factor(songs_used$mode)
+songs_used$playlist_subgenre <- as.factor(songs_used$playlist_subgenre)
+songs_used <- subset(songs_used, select = -13)
+
+colnames(songs_used)[colnames(songs_used)=="duration_ms"]="duration"
+colnames(songs_used)[colnames(songs_used)=='playlist_subgenre']='genre'
+#separate the 4 categorical variables
+cat_predictors <- c('genre','key','mode')
+cat_used <- songs_used[,cat_predictors]
+
+#separate out the 9 numerical variables
+num_predictors <- c('danceability', 'energy','loudness','speechiness',
+                    'acousticness', 'instrumentalness', 'valence','tempo','duration',
+                    'liveness')
+num_used <- songs_used[,num_predictors]
+
+#train test split
+set.seed(0) 
+
+sampler <- sample(nrow(songs_used),trunc(nrow(songs_used)*.80)) # samples index 
+
+train_set <- songs_used[sampler,]
+test_set <- songs_used[-sampler,]
+
+
+#create subsets of each genre
+pop <- songs_used[which(songs_used['genre']=='pop'),]
+edm <- songs_used[which(songs_used['genre']=='edm'),]
+randb <- songs_used[which(songs_used['genre']=='r&b'),]
+metal <- songs_used[which(songs_used['genre']=='metal'),]
+rap <- songs_used[which(songs_used['genre']=='rap'),]
+country <- songs_used[which(songs_used['genre']=='country'),]
+
+subgenres <- list("pop", "edm", "r&b", "metal", "rap", "country")
+```
+
+```{r}
+library(caret)
+# New model libraries
+library(class) # new library for KNN modeling
+library(rpart) # new library for CART modeling
+
+# New package for making pretty pictures of CART trees
+library(rpart.plot)
+
+library(randomForest) # new library added for random forests and bagging
+
+library(iml)
+
+library(ggplot2)
+
+set.seed(123)
+
+sampler <- sample(nrow(songs_used),trunc(nrow(songs_used)*.80)) # samples index 
+Lecture.Train <- songs_used[sampler,]
+Lecture.Test <- songs_used[-sampler,]
+```
+
+# CART
+```{r}
+CART <- rpart(genre~., data=Lecture.Train)
+# summary(CART)
+```
+
+```{r}
+# prp(CART)
+predClassCART <- predict(CART, newdata = Lecture.Test, type = "class")
+confusionMatrix(predClassCART, Lecture.Test$genre)
+```
+
+# The best algorithm so far is SVM with prediction accuracy of 0.6167. The peformance of CART can only get better with Random Forest.
+# Best parameters : ntress = 500, mtry = 5. Get prediction accuracy of: 0.6875.
+
+
+```{r}
+RandomForest <- randomForest(genre ~ ., data=Lecture.Train, importance = TRUE, ntrees = 500, mtry=5)
+
+predClassRF <- predict(RandomForest, newdata = Lecture.Test, type = "response")
+confusionMatrix(predClassRF , Lecture.Test$genre)
+```
+
+```{r}
+summary(RandomForest)
+importance(RandomForest)
+```
+
+
+```{r oneVone}
+
+wts <- 100/table(songs_used$genre)
+
+train_set$duration <- as.numeric(train_set$duration)
+test_set$duration <- as.numeric(test_set$duration)
+
+
+# svm.poly <- tune(svm, genre ~.-key -mode, data= train_set, class.weights = wts, kernel ="polynomial", 
+              # ranges =list(cost=c(0.1 ,1 ,10 ,100 ,1000),degree=c(0.5,1,2,3,4) ))
+# svm.poly$best.parameters # degree 1, cost 1000
+
+
+# svm.rad <- tune(svm,genre ~., data= train_set, class.weights = wts, kernel ="radial", 
+              # ranges =list(cost=c(0.1 ,1 ,10 ,100 ,1000),gamma=c(0.5,1,2,3,4) ))
+# svm.rad$best.parameters # gamma .5, cost 10
+
+# svm.line <- tune(svm, genre ~., data= train_set, class.weights = wts, kernel ="linear", 
+              # ranges =list(cost=c(0.1 ,1 ,10 ,100 ,1000),gamma=c(1,1,1,1,1) ))
+# svm.line$best.parameters # cost 100
+
+
+# svm.line1 <- svm(genre ~ . -key -mode, data=train_set, kernel="linear",
+             # cost=1000, class.weight=wts, probability=TRUE, decision.values=TRUE)
+
+# confusionMatrix(predict(svm.line1, test_set), test_set$genre)
+
+
+# confusionMatrix(predict(svm.poly$best.model, test_set), test_set$genre) 
+# confusionMatrix(predict(svm.rad$best.model, test_set), test_set$genre)
+# confusionMatrix(predict(svm.line$best.model, test_set), test_set$genre)
+```
+
+```{r metalVall}
+
+metalVall <- songs_used
+metalVall$genre <- as.character(metalVall$genre)
+metalVall$genre[metalVall$genre != "metal"] <- "0"
+metalVall$genre[metalVall$genre == "metal"] <- "1"
+metalVall$genre <- as.factor(metalVall$genre)
+
+set.seed(0) 
+
+sampler <- sample(nrow(metalVall),trunc(nrow(metalVall)*.80)) # samples index 
+train_metal <- metalVall[sampler,]
+test_metal <- metalVall[-sampler,]
+
+# SVM
+wts <- 100/table(metalVall$genre)
+
+# svm.metal<- tune(svm, genre ~.-key -mode, data= train_metal, class.weights = wts, probability = TRUE, kernel ="polynomial", 
+              # ranges =list(cost=c(0.1 ,1 ,10 ,100 ,1000),degree=c(0.5,1,2,3,4) ))
+# svm.metal$best.parameters
+
+# predClassSVM.Best <- predict(svm.metal$best.model, newdata = test_metal)
+
+# predProbSVM<-attributes(predict(svm.metal$best.model, test_metal, 
+                                # probability = TRUE))$probabilities[,2]
+
+# confusionMatrix(data=predClassSVM.Best, reference=test_metal$genre)
+
+# SVM.ROC <- performance(prediction(predProbSVM, test_metal$genre), 
+                      #  measure="tpr", x.measure="fpr")
+
+# SVM.AUC <- performance(prediction(predProbSVM, test_metal$genre), 
+                       # measure="auc")@y.values
+
+
+# Logit
+
+
+logit.all<- glm(genre ~ ., data = train_metal, family  = binomial(link = "logit"))
+logit.step<- step(logit.all, direction = "both")
+
+
+predClassLogit <- factor(predict(logit.step, type = "response", newdata=test_metal) > 0.5, labels = c("0","1"))
+predProbLogit <- predict(logit.step, type = "response", newdata = test_metal)
+
+confusionMatrix(data=predClassLogit, reference=test_metal$genre)
+
+Logit.ROC <- performance(prediction(predProbLogit, test_metal$genre), measure="tpr", x.measure="fpr")
+
+Logit.AUC <- performance(prediction(predProbLogit, test_metal$genre), 
+                         measure="auc")@y.values
+
+
+##### CART model
+
+CART <- rpart(genre ~., data=train_metal)
+
+predClassCART <- predict(CART, newdata = test_metal, type = "class")
+predProbCART <- predict(CART, newdata = test_metal, type = "prob")[,2]
+
+confusionMatrix(predClassCART, test_metal$genre)
+
+CART.ROC <- performance(prediction(predProbCART, test_metal$genre), measure="tpr", x.measure="fpr")
+
+CART.AUC <- performance(prediction(predProbCART, test_metal$genre), 
+                        measure="auc")@y.values
+
+###### Random Forest
+
+RandomForest <- randomForest(genre ~ ., data=train_metal, importance = TRUE, ntrees = 500)
+
+
+predProbRF <- predict(RandomForest, newdata = test_metal, type = "prob")[,2]
+predClassRF <- predict(RandomForest, newdata = test_metal, type = "response")
+
+confusionMatrix(predClassRF, test_metal$genre)
+
+RF.ROC <- performance(prediction(predProbRF, test_metal$genre), 
+                      measure="tpr", x.measure="fpr")
+
+RF.AUC <- performance(prediction(predProbRF, test_metal$genre), 
+                      measure="auc")@y.values
+
+
+##### KNN
+
+# Assigning the response 
+train.def <- train_metal$genre
+test.def <- train_metal$genre
+
+# Assign explanatory variables
+train.gc <- train_metal[,2:13]
+test.gc <- test_metal[,2:13]
+
+#knn.cross <- tune.knn(x = train.gc, y = train.def, k = 1:40,tunecontrol=tune.control(sampling = "cross"), cross=10)
+#knn.boot <- tune.knn(x = train.gc, y = train.def, k = 1:100,tunecontrol=tune.control(sampling = "boot"), cross=10)
+
+
+knn.best <-  knn(train.gc, test.gc, train.def, k=7)
+
+
+knn.best.prob <-  knn(train.gc, test.gc, train.def, k=7, prob=TRUE)
+KNN.prob <- rep(0, length(knn.best.prob))
+for(i in 1:length(KNN.prob)){
+  KNN.prob[i] <- ifelse(knn.best.prob[i] != "No", 1 - attr(knn.best.prob, 'prob')[i], attr(knn.best.prob, 'prob')[i])
+}
+predProbKNN <- prediction(KNN.prob, test_metal$genre)
+
+confusionMatrix(knn.best, test_metal$genre)
+
+KNN.ROC <- performance(predProbKNN, measure="tpr", x.measure="fpr")
+
+KNN.AUC <- performance(prediction(KNN.prob, test_metal$genre), 
+                       measure="auc")@y.values
+
+
+
+###### ROC compare plot
+
+### Plot our ROC Performance with Logit as base
+plot(Logit.ROC, lwd=2, main = "ROC Comparison")
+
+# Add SVM
+# lines(attributes(SVM.ROC)$x.values[[1]], attributes(SVM.ROC)$y.values[[1]], 
+      # col="red", lwd=2)
+
+# Add KNN
+lines(attributes(KNN.ROC)$x.values[[1]], attributes(KNN.ROC)$y.values[[1]], 
+      col="blue", lwd=2)
+
+# Add CART
+lines(attributes(CART.ROC)$x.values[[1]], attributes(CART.ROC)$y.values[[1]], 
+      col="green", lwd=2)
+
+# Add RF
+lines(attributes(RF.ROC)$x.values[[1]], attributes(RF.ROC)$y.values[[1]], 
+      col="Brown", lwd=2)
+
+#Add Legend
+legend(x=.6, y=.6, c("Logistic (Step)", "SVM", "KNN", "CART", "RF"), 
+       col=c("black", "red", "blue", "green", "Brown"), lwd=c(2,2,2,2,2))
+
+
+
+
+
+
+
+```
+
+```{r metalVall2}
+
+metalVall <- songs_used
+metalVall$genre <- as.character(metalVall$genre)
+metalVall$genre[metalVall$genre != "metal"] <- "0"
+metalVall$genre[metalVall$genre == "metal"] <- "1"
+metalVall$genre <- as.factor(metalVall$genre)
+metalVall$popularity <- songs$track.popularity
+
+set.seed(0) 
+
+sampler <- sample(nrow(metalVall),trunc(nrow(metalVall)*.80)) # samples index 
+train_metal <- metalVall[sampler,]
+test_metal <- metalVall[-sampler,]
+
+# SVM
+wts <- 100/table(metalVall$genre)
+
+# svm.metal<- tune(svm, genre ~.-key -mode, data= train_metal, class.weights = wts, probability = TRUE, kernel ="polynomial", 
+              # ranges =list(cost=c(0.1 ,1 ,10 ,100 ,1000),degree=c(0.5,1,2,3,4) ))
+# svm.metal$best.parameters
+
+# predClassSVM.Best <- predict(svm.metal$best.model, newdata = test_metal)
+
+# predProbSVM<-attributes(predict(svm.metal$best.model, test_metal, 
+                                # probability = TRUE))$probabilities[,2]
+
+# confusionMatrix(data=predClassSVM.Best, reference=test_metal$genre)
+
+# SVM.ROC <- performance(prediction(predProbSVM, test_metal$genre), 
+                       # measure="tpr", x.measure="fpr")
+
+# SVM.AUC <- performance(prediction(predProbSVM, test_metal$genre), 
+                      # measure="auc")@y.values
+
+
+# Logit
+
+
+logit.all<- glm(genre ~ ., data = train_metal, family  = binomial(link = "logit"))
+logit.step<- step(logit.all, direction = "both")
+
+
+predClassLogit <- factor(predict(logit.step, type = "response", newdata=test_metal) > 0.5, labels = c("0","1"))
+predProbLogit <- predict(logit.step, type = "response", newdata = test_metal)
+
+confusionMatrix(data=predClassLogit, reference=test_metal$genre)
+
+Logit.ROC <- performance(prediction(predProbLogit, test_metal$genre), measure="tpr", x.measure="fpr")
+
+Logit.AUC <- performance(prediction(predProbLogit, test_metal$genre), 
+                         measure="auc")@y.values
+
+
+##### CART model
+
+CART <- rpart(genre ~., data=train_metal)
+
+predClassCART <- predict(CART, newdata = test_metal, type = "class")
+predProbCART <- predict(CART, newdata = test_metal, type = "prob")[,2]
+
+confusionMatrix(predClassCART, test_metal$genre)
+
+CART.ROC <- performance(prediction(predProbCART, test_metal$genre), measure="tpr", x.measure="fpr")
+
+CART.AUC <- performance(prediction(predProbCART, test_metal$genre), 
+                        measure="auc")@y.values
+
+###### Random Forest
+
+RandomForest <- randomForest(genre ~ ., data=train_metal, importance = TRUE, ntrees = 500)
+
+
+predProbRF <- predict(RandomForest, newdata = test_metal, type = "prob")[,2]
+predClassRF <- predict(RandomForest, newdata = test_metal, type = "response")
+
+confusionMatrix(predClassRF, test_metal$genre)
+
+RF.ROC <- performance(prediction(predProbRF, test_metal$genre), 
+                      measure="tpr", x.measure="fpr")
+
+RF.AUC <- performance(prediction(predProbRF, test_metal$genre), 
+                      measure="auc")@y.values
+
+
+##### KNN
+
+# Assigning the response 
+train.def <- train_metal$genre
+test.def <- train_metal$genre
+
+# Assign explanatory variables
+train.gc <- train_metal[,2:14]
+test.gc <- test_metal[,2:14]
+
+#knn.cross <- tune.knn(x = train.gc, y = train.def, k = 1:40,tunecontrol=tune.control(sampling = "cross"), cross=10)
+#knn.boot <- tune.knn(x = train.gc, y = train.def, k = 1:100,tunecontrol=tune.control(sampling = "boot"), cross=10)
+
+
+knn.best <-  knn(train.gc, test.gc, train.def, k=7)
+
+
+knn.best.prob <-  knn(train.gc, test.gc, train.def, k=7, prob=TRUE)
+KNN.prob <- rep(0, length(knn.best.prob))
+for(i in 1:length(KNN.prob)){
+  KNN.prob[i] <- ifelse(knn.best.prob[i] != "No", 1 - attr(knn.best.prob, 'prob')[i], attr(knn.best.prob, 'prob')[i])
+}
+predProbKNN <- prediction(KNN.prob, test_metal$genre)
+
+confusionMatrix(knn.best, test_metal$genre)
+
+KNN.ROC <- performance(predProbKNN, measure="tpr", x.measure="fpr")
+
+KNN.AUC <- performance(prediction(KNN.prob, test_metal$genre), 
+                       measure="auc")@y.values
+
+
+
+###### ROC compare plot
+
+### Plot our ROC Performance with Logit as base
+plot(Logit.ROC, lwd=2, main = "ROC Comparison")
+
+# Add SVM
+# lines(attributes(SVM.ROC)$x.values[[1]], attributes(SVM.ROC)$y.values[[1]], 
+      # col="red", lwd=2)
+
+# Add KNN
+lines(attributes(KNN.ROC)$x.values[[1]], attributes(KNN.ROC)$y.values[[1]], 
+      col="blue", lwd=2)
+
+# Add CART
+lines(attributes(CART.ROC)$x.values[[1]], attributes(CART.ROC)$y.values[[1]], 
+      col="green", lwd=2)
+
+# Add RF
+lines(attributes(RF.ROC)$x.values[[1]], attributes(RF.ROC)$y.values[[1]], 
+      col="Brown", lwd=2)
+
+#Add Legend
+legend(x=.6, y=.6, c("Logistic (Step)", "SVM", "KNN", "CART", "RF"), 
+       col=c("black", "red", "blue", "green", "Brown"), lwd=c(2,2,2,2,2))
+```
+
+
+
+```{r popVall}
+popVall <- songs_used
+popVall$genre <- as.character(popVall$genre)
+popVall$genre[popVall$genre != "pop"] <- "0"
+popVall$genre[popVall$genre == "pop"] <- "1"
+popVall$genre <- as.factor(popVall$genre)
+
+set.seed(0) 
+
+sampler <- sample(nrow(popVall),trunc(nrow(popVall)*.80)) # samples index 
+train_pop <- popVall[sampler,]
+test_pop <- popVall[-sampler,]
+
+# SVM
+# wts <- 100/table(popVall$genre)
+
+# svm.pop<- tune(svm, genre ~.-key -mode, data= train_pop, class.weights = wts, probability = TRUE, kernel ="polynomial", 
+              # ranges =list(cost=c(0.1 ,1 ,10 ,100 ,1000),degree=c(0.5,1,2,3,4) ))
+# svm.pop$best.model
+
+# predClassSVM.Best <- predict(svm.pop$best.model, newdata = test_pop)
+
+# predProbSVM<-attributes(predict(svm.pop$best.model, test_pop, 
+                                # probability = TRUE))$probabilities[,2]
+
+# confusionMatrix(data=predClassSVM.Best, reference=test_pop$genre)
+
+# SVM.ROC <- performance(prediction(predProbSVM, test_pop$genre), 
+                       # measure="tpr", x.measure="fpr")
+
+# SVM.AUC <- performance(prediction(predProbSVM, test_pop$genre), 
+                       # measure="auc")@y.values
+
+
+# Logit
+
+
+logit.all<- glm(genre ~ ., data = train_pop, family  = binomial(link = "logit"))
+logit.step<- step(logit.all, direction = "both")
+
+
+predClassLogit <- factor(predict(logit.step, type = "response", newdata=test_pop) > 0.5, labels = c("0","1"))
+predProbLogit <- predict(logit.step, type = "response", newdata = test_pop)
+
+confusionMatrix(data=predClassLogit, reference=test_pop$genre)
+
+Logit.ROC <- performance(prediction(predProbLogit, test_pop$genre), measure="tpr", x.measure="fpr")
+
+Logit.AUC <- performance(prediction(predProbLogit, test_pop$genre), 
+                         measure="auc")@y.values
+
+
+##### CART model
+
+CART <- rpart(genre ~., data=train_pop)
+prp(CART)
+
+predClassCART <- predict(CART, newdata = test_pop, type = "class")
+predProbCART <- predict(CART, newdata = test_pop, type = "prob")[,2]
+
+confusionMatrix(predClassCART, test_pop$genre)
+
+CART.ROC <- performance(prediction(predProbCART, test_pop$genre), measure="tpr", x.measure="fpr")
+
+CART.AUC <- performance(prediction(predProbCART, test_pop$genre), 
+                        measure="auc")@y.values
+
+###### Random Forest
+
+RandomForest <- randomForest(genre ~ ., data=train_pop, importance = TRUE, ntrees = 500)
+
+
+predProbRF <- predict(RandomForest, newdata = test_pop, type = "prob")[,2]
+predClassRF <- predict(RandomForest, newdata = test_pop, type = "response")
+
+confusionMatrix(predClassRF, test_pop$genre)
+
+RF.ROC <- performance(prediction(predProbRF, test_pop$genre), 
+                      measure="tpr", x.measure="fpr")
+
+RF.AUC <- performance(prediction(predProbRF, test_pop$genre), 
+                      measure="auc")@y.values
+
+
+##### KNN
+
+# Assigning the response 
+train.def <- train_pop$genre
+test.def <- train_pop$genre
+
+# Assign explanatory variables
+train.gc <- train_pop[,2:13]
+test.gc <- test_pop[,2:13]
+
+
+#knn.cross <- tune.knn(x = train.gc, y = train.def, k = 1:40,tunecontrol=tune.control(sampling = "cross"), cross=10)
+#knn.boot <- tune.knn(x = train.gc, y = train.def, k = 1:100,tunecontrol=tune.control(sampling = "boot"), cross=10)
+
+knn.best <-  knn(train.gc, test.gc, train.def, k=7)
+
+
+knn.best.prob <-  knn(train.gc, test.gc, train.def, k=7, prob=TRUE)
+KNN.prob <- rep(0, length(knn.best.prob))
+for(i in 1:length(KNN.prob)){
+  KNN.prob[i] <- ifelse(knn.best.prob[i] != "No", 1 - attr(knn.best.prob, 'prob')[i], attr(knn.best.prob, 'prob')[i])
+}
+predProbKNN <- prediction(KNN.prob, test_pop$genre)
+
+confusionMatrix(knn.best, test_pop$genre)
+
+KNN.ROC <- performance(predProbKNN, measure="tpr", x.measure="fpr")
+
+KNN.AUC <- performance(prediction(KNN.prob, test_pop$genre), 
+                       measure="auc")@y.values
+
+
+
+###### ROC compare plot
+
+### Plot our ROC Performance with Logit as base
+plot(Logit.ROC, lwd=2, main = "ROC Comparison")
+
+# Add SVM
+# lines(attributes(SVM.ROC)$x.values[[1]], attributes(SVM.ROC)$y.values[[1]], 
+      # col="red", lwd=2)
+
+# Add KNN
+lines(attributes(KNN.ROC)$x.values[[1]], attributes(KNN.ROC)$y.values[[1]], 
+      col="blue", lwd=2)
+
+# Add CART
+lines(attributes(CART.ROC)$x.values[[1]], attributes(CART.ROC)$y.values[[1]], 
+      col="green", lwd=2)
+
+# Add RF
+lines(attributes(RF.ROC)$x.values[[1]], attributes(RF.ROC)$y.values[[1]], 
+      col="Brown", lwd=2)
+
+#Add Legend
+legend(x=.6, y=.6, c("Logistic (Step)", "SVM", "KNN", "CART", "RF"), 
+       col=c("black", "red", "blue", "green", "Brown"), lwd=c(2,2,2,2,2))
+
+```
+
+```{r popVall2}
+
+#add track popularity variable
+
+
+popVall <- songs_used
+popVall$genre <- as.character(popVall$genre)
+popVall$genre[popVall$genre != "pop"] <- "0"
+popVall$genre[popVall$genre == "pop"] <- "1"
+popVall$genre <- as.factor(popVall$genre)
+popVall$popularity <- songs$track.popularity
+
+set.seed(0) 
+
+sampler <- sample(nrow(popVall),trunc(nrow(popVall)*.80)) # samples index 
+train_pop <- popVall[sampler,]
+test_pop <- popVall[-sampler,]
+
+# SVM
+# wts <- 100/table(popVall$genre)
+
+# svm.pop<- tune(svm, genre ~.-key -mode, data= train_pop, class.weights = wts, probability = TRUE, kernel ="polynomial", 
+              # ranges =list(cost=c(0.1 ,1 ,10 ,100 ,1000),degree=c(0.5,1,2,3,4) ))
+# svm.pop$best.model
+
+# predClassSVM.Best <- predict(svm.pop$best.model, newdata = test_pop)
+
+# predProbSVM<-attributes(predict(svm.pop$best.model, test_pop, 
+                                # probability = TRUE))$probabilities[,2]
+
+# confusionMatrix(data=predClassSVM.Best, reference=test_pop$genre)
+
+# SVM.ROC <- performance(prediction(predProbSVM, test_pop$genre), 
+                      #  measure="tpr", x.measure="fpr")
+
+# SVM.AUC <- performance(prediction(predProbSVM, test_pop$genre), 
+                       # measure="auc")@y.values
+
+
+# Logit
+
+
+logit.all<- glm(genre ~ ., data = train_pop, family  = binomial(link = "logit"))
+logit.step<- step(logit.all, direction = "both")
+
+predProbLogit <- predict(logit.step, type = "response", newdata = test_pop)
+
+confusionMatrix(data=predClassLogit, reference=test_pop$genre)
+
+Logit.ROC <- performance(prediction(predProbLogit, test_pop$genre), measure="tpr", x.measure="fpr")
+
+Logit.AUC <- performance(prediction(predProbLogit, test_pop$genre), 
+                         measure="auc")@y.values
+
+
+##### CART model
+
+CART <- rpart(genre ~., data=train_pop)
+
+predClassCART <- predict(CART, newdata = test_pop, type = "class")
+predProbCART <- predict(CART, newdata = test_pop, type = "prob")[,2]
+
+confusionMatrix(predClassCART, test_pop$genre)
+
+CART.ROC <- performance(prediction(predProbCART, test_pop$genre), measure="tpr", x.measure="fpr")
+
+CART.AUC <- performance(prediction(predProbCART, test_pop$genre), 
+                        measure="auc")@y.values
+
+###### Random Forest
+
+RandomForest <- randomForest(genre ~ ., data=train_pop, importance = TRUE, ntrees = 500)
+
+
+predProbRF <- predict(RandomForest, newdata = test_pop, type = "prob")[,2]
+predClassRF <- predict(RandomForest, newdata = test_pop, type = "response")
+
+confusionMatrix(predClassRF, test_pop$genre)
+
+RF.ROC <- performance(prediction(predProbRF, test_pop$genre), 
+                      measure="tpr", x.measure="fpr")
+
+RF.AUC <- performance(prediction(predProbRF, test_pop$genre), 
+                      measure="auc")@y.values
+
+
+##### KNN
+
+# Assigning the response 
+train.def <- train_pop$genre
+test.def <- train_pop$genre
+
+# Assign explanatory variables
+train.gc <- train_pop[,2:14]
+test.gc <- test_pop[,2:14]
+
+#knn.cross <- tune.knn(x = train.gc, y = train.def, k = 1:40,tunecontrol=tune.control(sampling = "cross"), cross=10)
+
+knn.best <-  knn(train.gc, test.gc, train.def, k=7)
+
+
+knn.best.prob <-  knn(train.gc, test.gc, train.def, k=7, prob=TRUE)
+KNN.prob <- rep(0, length(knn.best.prob))
+for(i in 1:length(KNN.prob)){
+  KNN.prob[i] <- ifelse(knn.best.prob[i] != "No", 1 - attr(knn.best.prob, 'prob')[i], attr(knn.best.prob, 'prob')[i])
+}
+predProbKNN <- prediction(KNN.prob, test_pop$genre)
+
+confusionMatrix(knn.best, test_pop$genre)
+
+KNN.ROC <- performance(predProbKNN, measure="tpr", x.measure="fpr")
+
+KNN.AUC <- performance(prediction(KNN.prob, test_pop$genre), 
+                       measure="auc")@y.values
+
+
+
+###### ROC compare plot
+
+### Plot our ROC Performance with Logit as base
+plot(Logit.ROC, lwd=2, main = "ROC Comparison")
+
+# Add SVM
+# lines(attributes(SVM.ROC)$x.values[[1]], attributes(SVM.ROC)$y.values[[1]], 
+      # col="red", lwd=2)
+
+# Add KNN
+lines(attributes(KNN.ROC)$x.values[[1]], attributes(KNN.ROC)$y.values[[1]], 
+      col="blue", lwd=2)
+
+# Add CART
+lines(attributes(CART.ROC)$x.values[[1]], attributes(CART.ROC)$y.values[[1]], 
+      col="green", lwd=2)
+
+# Add RF
+lines(attributes(RF.ROC)$x.values[[1]], attributes(RF.ROC)$y.values[[1]], 
+      col="Brown", lwd=2)
+
+#Add Legend
+legend(x=.6, y=.6, c("Logistic (Step)", "SVM", "KNN", "CART", "RF"), 
+       col=c("black", "red", "blue", "green", "Brown"), lwd=c(2,2,2,2,2))
+
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+## Libraries for Plotting our Results
+library(ggplot2)
+library(gridExtra)
+
+## Library for confusion matrix
+library(caret)
+
+# Loading the nnet package for multinomial
+library(nnet)
+
+# Package for fitting SVM
+library(e1071)
+
+# New model libraries
+library(class) # new library for KNN modeling
+library(rpart) # new library for CART modeling
+
+# New package for making pretty pictures of CART trees
+library(rpart.plot)
+
+library(randomForest) # new library added for random forests and bagging
+
+library(ROCR)
+
+library(corrplot)
+library(GGally)
+library(tidyverse)
+library(dplyr)
+library(MASS)
+library(L1pack)
+library(glmnet)
+library(car)
+
+load("Final_Project_KNN.RData")
+```
+
+
+# KNN
+```{r}
+# Assigning the response 
+train.def <- Lecture.Train$genre
+test.def <- Lecture.Test$genre
+
+# Assign explanatory variables
+test.gc <- model.matrix(~., Lecture.Test[,-1])
+train.gc <- model.matrix(~.,Lecture.Train[,-1])
+
+knn.cross <- tune.knn(x = train.gc, y = train.def, k = 1:43,tunecontrol=tune.control(sampling = "cross"), cross=10)
+knn.boot <- tune.knn(x = train.gc, y = train.def, k = 1:43,tunecontrol=tune.control(sampling = "boot"), cross=10)
+```
+
+```{r}
+summary(knn.cross)
+plot(knn.cross)
+```
+
+```{r}
+# k=18 is lowest but even. Between k=19 & k= 17, choose k=19 since lower error. 
+summary(knn.boot)
+plot(knn.boot)
+```
+
+```{r}
+# used k=23 after expanding the tuning function
+knn.best <-  knn(train.gc, test.gc, train.def, k=43)
+confusionMatrix(knn.best, Lecture.Test$genre)
+```
+
+## Binary classification on one genre
+### Metal vs Non-metal Songs
+```{r}
+#separate out metal and non-metal songs
+metal_songs <- songs_used
+metal_songs$genre <- as.character(metal_songs$genre)
+metal_songs$genre[metal_songs$genre!='metal'] <- 'nonmetal'
+metal_songs$genre <- as.factor(metal_songs$genre)
+
+Metal.Train <- metal_songs[sampler,]
+Metal.Test <- metal_songs[-sampler,]
+
+# Assigning the response 
+train.def <- Metal.Train$genre
+test.def <- Metal.Test$genre
+
+# Assign explanatory variables
+test.gc <- model.matrix(~., Metal.Test[,-1])
+train.gc <- model.matrix(~.,Metal.Train[,-1])
+
+metal_knn.cross <- tune.knn(x = train.gc, y = train.def, k = 1:43,tunecontrol=tune.control(sampling = "cross"), cross=10)
+metal_knn.boot <- tune.knn(x = train.gc, y = train.def, k = 1:43,tunecontrol=tune.control(sampling = "boot"), cross=10)
+
+summary(metal_knn.cross)
+plot(metal_knn.cross)
+# k=39, 42: 0.15
+```
+
+```{r}
+summary(metal_knn.boot)
+plot(metal_knn.boot)
+```
+
+```{r}
+# K=39 for knn.cross
+metal_knn.best <-  knn(train.gc, test.gc, train.def, k=39)
+confusionMatrix(metal_knn.best, Metal.Test$genre)
+```
+
+### Pop vs Non-Pop Songs
+```{r}
+#separate out metal and non-metal songs
+pop_songs <- songs_used
+pop_songs$genre <- as.character(pop_songs$genre)
+pop_songs$genre[pop_songs$genre!='pop'] <- 'nonpop'
+pop_songs$genre <- as.factor(pop_songs$genre)
+
+Pop.Train <- pop_songs[sampler,]
+Pop.Test <- pop_songs[-sampler,]
+
+# Assigning the response 
+train.def <- Pop.Train$genre
+test.def <- Pop.Test$genre
+
+# Assign explanatory variables
+test.gc <- model.matrix(~., Pop.Test[,-1])
+train.gc <- model.matrix(~.,Pop.Train[,-1])
+
+pop_knn.cross <- tune.knn(x = train.gc, y = train.def, k = 1:43,tunecontrol=tune.control(sampling = "cross"), cross=10)
+pop_knn.boot <- tune.knn(x = train.gc, y = train.def, k = 1:43,tunecontrol=tune.control(sampling = "boot"), cross=10)
+
+summary(pop_knn.cross)
+plot(pop_knn.cross)
+# k=19: 0.16667
+```
+
+```{r}
+summary(pop_knn.boot)
+plot(pop_knn.boot)
+```
+
+```{r}
+# K=19 for knn.cross
+pop_knn.best <-  knn(train.gc, test.gc, train.def, k=19)
+confusionMatrix(pop_knn.best, Pop.Test$genre)
+```
+
+### EDM vs Non-EDM Songs
+```{r}
+#separate out metal and non-metal songs
+edm_songs <- songs_used
+edm_songs$genre <- as.character(edm_songs$genre)
+edm_songs$genre[edm_songs$genre!='edm'] <- 'non_edm'
+edm_songs$genre <- as.factor(edm_songs$genre)
+
+EDM.Train <- edm_songs[sampler,]
+EDM.Test <- edm_songs[-sampler,]
+
+# Assigning the response 
+train.def <- EDM.Train$genre
+test.def <- EDM.Test$genre
+
+# Assign explanatory variables
+test.gc <- model.matrix(~., EDM.Test[,-1])
+train.gc <- model.matrix(~.,EDM.Train[,-1])
+
+edm_knn.cross <- tune.knn(x = train.gc, y = train.def, k = 1:43,tunecontrol=tune.control(sampling = "cross"), cross=10)
+edm_knn.boot <- tune.knn(x = train.gc, y = train.def, k = 1:43,tunecontrol=tune.control(sampling = "boot"), cross=10)
+
+summary(edm_knn.cross)
+plot(edm_knn.cross)
+# k=25: 0.1640625
+```
+
+```{r}
+summary(edm_knn.boot)
+plot(edm_knn.boot)
+# k=41: 0.1635988
+```
+
+```{r}
+# K=41 for knn.boot
+edm_knn.best <-  knn(train.gc, test.gc, train.def, k=25)
+confusionMatrix(edm_knn.best, EDM.Test$genre)
+```
+
+### R&B vs Non-R&B Songs
+```{r}
+#separate out metal and non-metal songs
+rab_songs <- songs_used
+rab_songs$genre <- as.character(rab_songs$genre)
+rab_songs$genre[rab_songs$genre!='r&b'] <- 'non_r&b'
+rab_songs$genre <- as.factor(rab_songs$genre)
+
+RAB.Train <- rab_songs[sampler,]
+RAB.Test <- rab_songs[-sampler,]
+
+# Assigning the response 
+train.def <- RAB.Train$genre
+test.def <- RAB.Test$genre
+
+# Assign explanatory variables
+test.gc <- model.matrix(~., RAB.Test[,-1])
+train.gc <- model.matrix(~.,RAB.Train[,-1])
+
+rab_knn.cross <- tune.knn(x = train.gc, y = train.def, k = 1:43,tunecontrol=tune.control(sampling = "cross"), cross=10)
+rab_knn.boot <- tune.knn(x = train.gc, y = train.def, k = 1:43,tunecontrol=tune.control(sampling = "boot"), cross=10)
+
+summary(rab_knn.cross)
+plot(rab_knn.cross)
+# k=22: 0.1682292
+```
+
+```{r}
+summary(rab_knn.boot)
+plot(rab_knn.boot)
+```
+
+```{r}
+# K=22 for knn.cross
+rab_knn.best <-  knn(train.gc, test.gc, train.def, k=22)
+confusionMatrix(rab_knn.best, RAB.Test$genre)
+```
+
+### Rap vs Non-Rap Songs
+```{r}
+rap_songs <- songs_used
+rap_songs$genre <- as.character(rap_songs$genre)
+rap_songs$genre[rap_songs$genre!='rap'] <- 'non_rap'
+rap_songs$genre <- as.factor(rap_songs$genre)
+
+Rap.Train <- rap_songs[sampler,]
+Rap.Test <- rap_songs[-sampler,]
+
+# Assigning the response 
+train.def <- Rap.Train$genre
+test.def <- Rap.Test$genre
+
+# Assign explanatory variables
+test.gc <- model.matrix(~., Rap.Test[,-1])
+train.gc <- model.matrix(~.,Rap.Train[,-1])
+
+rap_knn.cross <- tune.knn(x = train.gc, y = train.def, k = 1:43,tunecontrol=tune.control(sampling = "cross"), cross=10)
+rap_knn.boot <- tune.knn(x = train.gc, y = train.def, k = 1:43,tunecontrol=tune.control(sampling = "boot"), cross=10)
+
+summary(rap_knn.cross)
+plot(rap_knn.cross)
+# k=18 : 0.1645833
+```
+
+```{r}
+summary(rap_knn.boot)
+plot(rap_knn.boot)
+```
+
+```{r}
+# K=18 for knn.cross
+rap_knn.best <-  knn(train.gc, test.gc, train.def, k=18)
+confusionMatrix(rap_knn.best, Rap.Test$genre)
+```
+
+### Country vs Non-Country Songs
+```{r}
+country_songs <- songs_used
+country_songs$genre <- as.character(country_songs$genre)
+country_songs$genre[country_songs$genre!='country'] <- 'non_country'
+country_songs$genre <- as.factor(country_songs$genre)
+
+Country.Train <- country_songs[sampler,]
+Country.Test <- country_songs[-sampler,]
+
+# Assigning the response 
+train.def <- Country.Train$genre
+test.def <- Country.Test$genre
+
+# Assign explanatory variables
+test.gc <- model.matrix(~., Country.Test[,-1])
+train.gc <- model.matrix(~.,Country.Train[,-1])
+
+country_knn.cross <- tune.knn(x = train.gc, y = train.def, k = 1:43,tunecontrol=tune.control(sampling = "cross"), cross=10)
+country_knn.boot <- tune.knn(x = train.gc, y = train.def, k = 1:43,tunecontrol=tune.control(sampling = "boot"), cross=10)
+
+summary(country_knn.cross)
+plot(country_knn.cross)
+# k=21 : 0.1651042
+```
+
+```{r}
+summary(country_knn.boot)
+plot(country_knn.boot)
+```
+
+```{r}
+# K=21 for knn.cross
+country_knn.best <-  knn(train.gc, test.gc, train.def, k=21)
+confusionMatrix(country_knn.best, Country.Test$genre)
+```
+
+```{r}
+save.image("Final_Project_KNN.RData")
+```
