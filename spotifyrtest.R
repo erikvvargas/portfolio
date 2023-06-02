@@ -4,8 +4,8 @@ library(knitr)
 library(lubridate)
 
 
-Sys.setenv(SPOTIFY_CLIENT_ID='ffc7fc15b44348488a6336af9513b08f')
-Sys.setenv(SPOTIFY_CLIENT_SECRET = 'a7f906e0ad0942e5afa9727d1c35f569')
+
+
 
 access_token <- get_spotify_access_token()
 
