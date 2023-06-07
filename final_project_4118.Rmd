@@ -14,19 +14,19 @@ knitr::opts_chunk$set(echo = TRUE)
 library(corrplot)
 library(GGally)
 library(tidyverse)
-library(dplyr)
+# library(dplyr)
 # library(MASS)
-library(L1pack)
+# library(L1pack)
 library(glmnet)
 library(car)
 
-library(ggplot2)
+# library(ggplot2)
 library(ggfortify)
 library(gridExtra)
 
 library(cowplot)     # allows us to create matrix plots
 
-library(varhandle)   # provides unfactor() function
+# library(varhandle)   # provides unfactor() function
 library(cluster)     # provides bottom-up clustering support
 library(factoextra)  # support for plotting of clusters
 
@@ -37,9 +37,9 @@ set.seed(123)        # so we get consistent results for rendering this tutorial
 ```{r}
 # read in the data set
 
-songs <- read.csv('six_genre_features.csv')
+songs <- read.csv('genre_songs_8.csv')
 # songs <- read.csv('genres_small.csv')
-attach(songs)
+# attach(songs)
 
 # take only the columns we need for analysis
 used_cols <- c('playlist_subgenre','danceability',
