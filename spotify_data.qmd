@@ -1,6 +1,8 @@
 ---
 execute:
   echo: false
+  message: false
+  warning: false
 ---
 
 # Spotify Data
@@ -14,16 +16,16 @@ library(tidyverse)
 library(GGally)
 library(corrplot)
 
-setwd("H:\\My Drive\\Spotify_Project")
-
-song.data <- read_csv("genre_songs_8.csv")
+# setwd("H:\\My Drive\\Spotify_Project")
+# setwd("C:\\Users\\erikv\\AppData\\Roaming\\MobaXterm\\home\\portfolio")
+# song.data <- read_csv("genre_songs_8.csv")
 
 
 ```
 
 ```{r}
-summary(song.data)
-head(song.data)
+# summary(song.data)
+# head(song.data)
 ```
 
 <!-- ```{r} -->
