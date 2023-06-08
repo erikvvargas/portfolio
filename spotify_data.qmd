@@ -11,6 +11,8 @@ One of my favorite hobbies is listening to music. Not just through headphones or
 
 https://d2l.ai/index.html
 
+
+
 ```{r preliminaries}
 library(tidyverse)
 library(GGally)
@@ -19,8 +21,69 @@ library(knitr)
 library(viridis)
 library(hrbrthemes)
 library(lubridate)
+library(plotly)
 songs <- read.csv('genre_songs_8.csv')
 ```
+
+```{r}
+# change the three categorical variables into factors
+songs$key <- as.factor(songs$key)
+songs$mode <- as.factor(songs$mode)
+#songs$playlist_subgenre <- as.factor(songs$playlist_subgenre)
+
+#shorten name and turn to date object (lubridate)
+songs <- songs %>% 
+  mutate(release_date = as.Date(track.album.release_date))
+
+songs <- songs %>% 
+  rename(duration = duration_ms,
+         genre = playlist_genre,
+         subgenre = playlist_subgenre)
+
+# rename some predictors
+# create predictor subsets
+cat_predictors <- c("genre", "key", "mode", "release_date")
+cat_used <- select(songs, cat_predictors)
+
+
+#separate out the 9 numerical variables
+num_predictors <- c('danceability', 'energy','loudness','speechiness',
+                    'acousticness', 'instrumentalness', 'valence','tempo','duration','liveness')
+
+
+# transform the acousticness variable with logarithm
+
+# songs <- songs %>%
+#   mutate(acousticness = log(acousticness))
+
+# songs[which(songs$instrumentalness==0),]$instrumentalness <- .0000001
+# songs <- songs %>%
+#   mutate(instrumentalness = log(instrumentalness))
+
+
+songs <- songs %>%
+  mutate(speechiness = log(speechiness))
+num_used <- select(songs, num_predictors)
+
+```
+
+First things first, I needed data before I could analyze. I utilized some function calls to pull down data from Spotify's API with a few predetermined genres of music. From here, I read this in to R to begin exploring what data I had. There were some issues.
+
+```{r}
+feature_names <- names(num_used)
+
+songs %>%
+  select(c('genre', feature_names)) %>%
+  pivot_longer(cols = feature_names) %>%
+  ggplot(aes(x = value)) +
+  geom_density(aes(color = genre), alpha = 0.9) +
+  facet_wrap(~name, ncol = 3, scales = 'free') +
+  labs(title = 'Spotify Audio Feature Density - by Genre',
+       x = '', y = 'density') +
+  theme(axis.text.y = element_blank()) + 
+  scale_color_brewer(palette = 'Set1')
+```
+Acousticness seems drastically skewed to the right and concentrated right around 0. Instrumentalness and Loudness seem to also have similar problems. Duration **seems** fine, but there's a large tail that extends to almost an hour and a half. There needs to be some cleaning done here to get the data into an easily analyzed format.
 
 ```{r}
 #| eval: false
@@ -32,6 +95,7 @@ songs <- songs %>%
 
 names(songs)
 ```
+
 ## Exploratory Data Analysis
 
 ```{r}
@@ -76,34 +140,16 @@ songs %>%
   facet_wrap(~ playlist_genre)
 ```
 
-## Data Cleaning
+
+## Data Separation for Modeling
 
 ```{r}
-# change the three categorical variables into factors
-songs$key <- as.factor(songs$key)
-songs$mode <- as.factor(songs$mode)
-#songs$playlist_subgenre <- as.factor(songs$playlist_subgenre)
+sampler <- sample(nrow(songs),trunc(nrow(songs)*.80)) # samples index 
 
-#shorten name and turn to date object (lubridate)
-songs <- songs %>% 
-  mutate(release_date = as.Date(track.album.release_date))
+train <- songs[sampler,]
+test <- songs[-sampler,]
 
-songs <- songs %>% 
-  rename(duration = duration_ms,
-         genre = playlist_genre,
-         subgenre = playlist_subgenre)
-
-# rename some predictors
-# create predictor subsets
-cat_predictors <- c("genre", "key", "mode", "release_date")
-cat_used <- select(songs, cat_predictors)
-
-
-#separate out the 9 numerical variables
-num_predictors <- c('danceability', 'energy','loudness','speechiness',
-                    'acousticness', 'instrumentalness', 'valence','tempo','duration','liveness')
 ```
-
 
 <!-- ```{r} -->
 <!-- library(reticulate) -->
