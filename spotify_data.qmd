@@ -22,11 +22,16 @@ library(viridis)
 library(hrbrthemes)
 library(lubridate)
 library(plotly)
-songs <- read.csv('genre_songs_8.csv')
+
+s.dat.1 <- readRDS("songs_no_transform.rds")
+s.dat.2 <- readRDS("songs_log_transform.rds")
+songs <- readRDS("songs_final.rds")
 ```
 
-```{r}
+```{r data-cleaning}
+#| eval: false
 # change the three categorical variables into factors
+songs <- read.csv('genre_songs_8.csv')
 songs$key <- as.factor(songs$key)
 songs$mode <- as.factor(songs$mode)
 #songs$playlist_subgenre <- as.factor(songs$playlist_subgenre)
@@ -40,8 +45,39 @@ songs <- songs %>%
          genre = playlist_genre,
          subgenre = playlist_subgenre)
 
+# remove duplicate songs based on track.id
+songs <- songs %>% 
+  distinct(track.id, .keep_all = TRUE)
+
+# convert from ms to minutes
+songs$duration <- songs$duration / 60000
 # rename some predictors
 # create predictor subsets
+saveRDS(songs, "songs_no_transform.rds")
+
+# transform the acousticness variable with logarithm
+songs <- songs %>%
+  mutate(acousticness = log(acousticness))
+
+songs[which(songs$instrumentalness==0),]$instrumentalness <- .0000001
+songs <- songs %>%
+  mutate(instrumentalness = log(instrumentalness))
+
+
+songs <- songs %>%
+  mutate(speechiness = log(speechiness))
+
+saveRDS(songs, "songs_log_transform.rds")
+
+# remove long duration songs
+
+songs <- songs %>% 
+  filter(duration < 10)
+
+saveRDS(songs, "songs_final.rds")
+```
+
+```{r}
 cat_predictors <- c("genre", "key", "mode", "release_date")
 cat_used <- select(songs, cat_predictors)
 
@@ -51,28 +87,16 @@ num_predictors <- c('danceability', 'energy','loudness','speechiness',
                     'acousticness', 'instrumentalness', 'valence','tempo','duration','liveness')
 
 
-# transform the acousticness variable with logarithm
-
-# songs <- songs %>%
-#   mutate(acousticness = log(acousticness))
-
-# songs[which(songs$instrumentalness==0),]$instrumentalness <- .0000001
-# songs <- songs %>%
-#   mutate(instrumentalness = log(instrumentalness))
-
-
-songs <- songs %>%
-  mutate(speechiness = log(speechiness))
 num_used <- select(songs, num_predictors)
+feature_names <- names(num_used)
 
 ```
 
 First things first, I needed data before I could analyze. I utilized some function calls to pull down data from Spotify's API with a few predetermined genres of music. From here, I read this in to R to begin exploring what data I had. There were some issues.
 
-```{r}
-feature_names <- names(num_used)
+```{r density-plot-1}
 
-songs %>%
+s.dat.1 %>%
   select(c('genre', feature_names)) %>%
   pivot_longer(cols = feature_names) %>%
   ggplot(aes(x = value)) +
@@ -85,49 +109,78 @@ songs %>%
 ```
 Acousticness seems drastically skewed to the right and concentrated right around 0. Instrumentalness and Loudness seem to also have similar problems. Duration **seems** fine, but there's a large tail that extends to almost an hour and a half. There needs to be some cleaning done here to get the data into an easily analyzed format.
 
-```{r}
-#| eval: false
-View(songs)
+```{r density-plot-2}
+s.dat.2 %>%
+  select(c('genre', feature_names)) %>%
+  pivot_longer(cols = feature_names) %>%
+  ggplot(aes(x = value)) +
+  geom_density(aes(color = genre), alpha = 0.9) +
+  facet_wrap(~name, ncol = 3, scales = 'free') +
+  labs(title = 'Spotify Audio Feature Density - by Genre',
+       x = '', y = 'density') +
+  theme(axis.text.y = element_blank()) + 
+  scale_color_brewer(palette = 'Set1')
 
-# remove duplicate tracks based on unique track.id
-songs <- songs %>% 
-  distinct(track.id, .keep_all = TRUE)
+```
 
-names(songs)
+This seems a bit better but duration still looks skewed so lets see why there is such a long tail to the right. First I'll start by looking at how many songs have a duration longer than 10 minutes.
+
+
+```{r duration-analysis}
+
+songs %>% 
+  filter(duration > 10) %>% summarise(Count = n())
+```
+
+There are only 99 songs with a duration longer than 10 minutes and the overall dataset has 36K songs. For the purposes of this analysis it's best to take these out as they don't represent the majority of the data. 
+
+One more look at the density plot before we start taking apart the features and looking towards prediction/classification.
+
+```{r density-plot-3}
+songs %>%
+  select(c('genre', feature_names)) %>%
+  pivot_longer(cols = feature_names) %>%
+  ggplot(aes(x = value)) +
+  geom_density(aes(color = genre), alpha = 0.9) +
+  facet_wrap(~name, ncol = 3, scales = 'free') +
+  labs(title = 'Spotify Audio Feature Density - by Genre',
+       x = '', y = 'density') +
+  theme(axis.text.y = element_blank()) + 
+  scale_color_brewer(palette = 'Set1')
+
 ```
 
 ## Exploratory Data Analysis
 
-```{r}
-#| eval: false
-summary(songs)
-head(songs)
-str(songs)
-```
 
 ```{r}
 # get a count of tracks in all genres
 songs %>% 
-  group_by(playlist_genre) %>% 
+  group_by(genre) %>% 
   summarise(Count = n()) %>% 
   kable(format = "html", caption = "Distribution of Song Counts by Genre",
         col.names = c("Genre", "Count"))
 ```
 
 ```{r}
-#| eval: false
-class(songs)
+# songs %>% 
+#   sample_n(1000) %>% 
+#   ggpairs(feature_names)
+
+s = cor(songs[,c("speechiness", "acousticness")])
+corrplot(s, method = "color")
 ```
 
 
 ```{r}
+#| eval: false
 # songs %>% 
 #   ggplot(aes(x = danceability, color = playlist_genre)) +
 #   geom_histogram(bins = 50) +
 #   facet_wrap(~ playlist_genre)
 
 songs %>% 
-  ggplot(aes(x = danceability, fill = playlist_genre, color = playlist_genre)) +
+  ggplot(aes(x = danceability, fill = genre, color = genre)) +
   geom_histogram(alpha = 0.6) + 
   scale_fill_viridis(discrete = TRUE) +
   scale_color_viridis(discrete = TRUE) +
@@ -137,7 +190,7 @@ songs %>%
   #   panel.spacing = unit(0.1, "lines"),
   #   strip.text.x = element_text(size = 8)
   # )+
-  facet_wrap(~ playlist_genre)
+  facet_wrap(~ genre)
 ```
 
 
