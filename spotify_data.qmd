@@ -22,9 +22,16 @@ library(viridis)
 library(hrbrthemes)
 library(lubridate)
 library(plotly)
+library(recipes)
+library(caret)
+library(rsample)
+library(randomForest)
+library(ranger)
+
 
 s.dat.1 <- readRDS("songs_no_transform.rds")
 s.dat.2 <- readRDS("songs_log_transform.rds")
+metal.nonmetal <- readRDS("metal_nonmetal_split.rds")
 songs <- readRDS("songs_final.rds")
 ```
 
@@ -40,22 +47,32 @@ songs$mode <- as.factor(songs$mode)
 songs <- songs %>% 
   mutate(release_date = as.Date(track.album.release_date))
 
+# dropping the release_Date column for missing dates
+songs <- songs %>% 
+  select(-release_date)
+
 songs <- songs %>% 
   rename(duration = duration_ms,
          genre = playlist_genre,
          subgenre = playlist_subgenre)
 
+songs <- songs %>% 
+  mutate(genre = as.factor(genre))
 # remove duplicate songs based on track.id
 songs <- songs %>% 
   distinct(track.id, .keep_all = TRUE)
 
 # convert from ms to minutes
 songs$duration <- songs$duration / 60000
+
+songs <- songs %>% 
+  filter(is.finite(acousticness))
 # rename some predictors
 # create predictor subsets
 saveRDS(songs, "songs_no_transform.rds")
 
 # transform the acousticness variable with logarithm
+songs[which(songs$acousticness==0),]$acousticness <- .0000001
 songs <- songs %>%
   mutate(acousticness = log(acousticness))
 
@@ -63,7 +80,7 @@ songs[which(songs$instrumentalness==0),]$instrumentalness <- .0000001
 songs <- songs %>%
   mutate(instrumentalness = log(instrumentalness))
 
-
+songs[which(songs$speechiness==0),]$speechiness <- .0000001
 songs <- songs %>%
   mutate(speechiness = log(speechiness))
 
@@ -74,11 +91,59 @@ saveRDS(songs, "songs_log_transform.rds")
 songs <- songs %>% 
   filter(duration < 10)
 
+# remove loudness > 0
+songs <- songs %>% 
+  filter(loudness <= 0) %>% 
+  mutate(loudness = loudness * -1)
+
+# make all negative numerical values positive
+songs <- songs %>% 
+  mutate(speechiness = speechiness * -1)
+
+songs <- songs %>% 
+  mutate(instrumentalness = instrumentalness * -1)
+
+songs <- songs %>% 
+  mutate(acousticness = acousticness * -1)
+
+# dummy variable for metal and nonmetal
+songs <- songs %>% 
+  mutate(metal = factor(case_when(genre == "metal" ~ 1,
+                           TRUE ~ 0)))
+
 saveRDS(songs, "songs_final.rds")
+# split the data into a smaller dataset with only metal and nonmetal labels
+# will be downsampling from the nonmetal dataset to the max number of metal songs
+metal.songs <- songs %>% 
+  filter(genre == "metal")
+nonmetal.songs <- songs %>% 
+  filter(genre != "metal") %>% 
+  sample_n(nrow(metal.songs))
+
+metal.sample <- rbind(metal.songs, nonmetal.songs)
+metal.sample <- metal.sample %>% 
+  select(-genre)
+saveRDS(metal.sample, "metal_nonmetal_split.rds")
+
 ```
 
 ```{r}
-cat_predictors <- c("genre", "key", "mode", "release_date")
+songs %>%
+  is.na() %>%
+  reshape2::melt() %>%
+  ggplot(aes(Var2, Var1, fill=value)) + 
+    geom_raster() + 
+    coord_flip() +
+    scale_y_continuous(NULL, expand = c(0, 0)) +
+    scale_fill_grey(name = "", 
+                    labels = c("Present", 
+                               "Missing")) +
+    xlab("Observation") +
+    theme(axis.text.y  = element_text(size = 4))
+```
+
+```{r}
+cat_predictors <- c("genre", "key", "mode")
 cat_used <- select(songs, cat_predictors)
 
 
@@ -86,9 +151,9 @@ cat_used <- select(songs, cat_predictors)
 num_predictors <- c('danceability', 'energy','loudness','speechiness',
                     'acousticness', 'instrumentalness', 'valence','tempo','duration','liveness')
 
-
 num_used <- select(songs, num_predictors)
-feature_names <- names(num_used)
+
+feature_names <- c(names(num_used), names(cat_used))
 
 ```
 
@@ -150,6 +215,8 @@ songs %>%
 
 ```
 
+
+
 ## Exploratory Data Analysis
 
 
@@ -163,12 +230,12 @@ songs %>%
 ```
 
 ```{r}
-# songs %>% 
-#   sample_n(1000) %>% 
-#   ggpairs(feature_names)
+songs %>%
+  sample_n(100) %>%
+  ggpairs(feature_names)
 
-s = cor(songs[,c("speechiness", "acousticness")])
-corrplot(s, method = "color")
+# s = cor(songs[,c("speechiness", "acousticness")])
+# corrplot(s, method = "color")
 ```
 
 
@@ -197,12 +264,71 @@ songs %>%
 ## Data Separation for Modeling
 
 ```{r}
-sampler <- sample(nrow(songs),trunc(nrow(songs)*.80)) # samples index 
+# split with all genres
+split1 <- initial_split(songs[feature_names], prop = .7) # samples index 
 
-train <- songs[sampler,]
-test <- songs[-sampler,]
+train1 <- training(split1)
+test1 <- testing(split1)
 
 ```
+
+
+```{r}
+# split with metal and nonmetal
+split2 <- initial_split(metal.nonmetal, prop = .7) # samples index 
+
+train2 <- training(split2)
+test2 <- testing(split2)
+```
+
+```{r}
+rf <- randomForest(genre~., data=train1, importance=TRUE) 
+print(rf)
+```
+
+```{r}
+p1 <- predict(rf, test1)
+confusionMatrix(p1, test1$genre)
+```
+
+```{r}
+plot(rf)
+```
+
+```{r}
+varImpPlot(rf,
+           sort = T,
+           n.var = 10,
+           main = "Top 10 - Variable Importance")
+```
+
+```{r}
+rf <- randomForest(metal~., data=train2, importance=TRUE) 
+print(rf)
+```
+
+```{r}
+p2 <- predict(rf, test2)
+confusionMatrix(p2, test2$metal)
+```
+
+```{r}
+plot(rf)
+```
+
+```{r}
+varImpPlot(rf,
+           sort = T,
+           n.var = 10,
+           main = "Top 10 - Variable Importance")
+```
+
+
+
+
+
+
+
 
 <!-- ```{r} -->
 <!-- library(reticulate) -->
