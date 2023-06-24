@@ -1,0 +1,602 @@
+---
+title: 'OA4118: Final Project'
+author: "MAJ Oleg Green, LT Erik Vargas, LTJG Mark Mohammed"
+date: "3/13/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include = TRUE, message=FALSE}
+# rm(list=ls())
+library(corrplot)
+library(GGally)
+library(tidyverse)
+# library(dplyr)
+# library(MASS)
+# library(L1pack)
+library(glmnet)
+library(car)
+
+# library(ggplot2)
+library(ggfortify)
+library(gridExtra)
+
+library(cowplot)     # allows us to create matrix plots
+
+# library(varhandle)   # provides unfactor() function
+library(cluster)     # provides bottom-up clustering support
+library(factoextra)  # support for plotting of clusters
+
+library(dbscan)      # support for the dbscan algorithm
+set.seed(123)        # so we get consistent results for rendering this tutorial
+```
+
+```{r}
+# read in the data set
+
+songs <- read.csv('genre_songs_8.csv')
+# songs <- read.csv('genres_small.csv')
+# attach(songs)
+
+# take only the columns we need for analysis
+used_cols <- c('playlist_subgenre','danceability',
+               'energy','key','loudness','mode','speechiness','acousticness',
+               'instrumentalness', 'valence','tempo','duration_ms','liveness')
+songs <- as.data.frame(songs[, used_cols]) #data frame with the variables used
+
+# change the three categorical variables into factors
+songs$key <- as.factor(songs$key)
+songs$mode <- as.factor(songs$mode)
+#songs$playlist_subgenre <- as.factor(songs$playlist_subgenre)
+
+# rename some predictors
+songs <- songs %>% 
+  rename(duration = duration_ms,
+         genre = playlist_subgenre)
+
+# create predictor subsets
+cat_predictors <- c("genre", "key", "mode")
+cat_used <- select(songs, cat_predictors)
+
+
+#separate out the 9 numerical variables
+num_predictors <- c('danceability', 'energy','loudness','speechiness',
+                    'acousticness', 'instrumentalness', 'valence','tempo','duration','liveness')
+
+
+#train test split
+set.seed(0) 
+
+sampler <- sample(nrow(songs),trunc(nrow(songs)*.80)) # samples index 
+
+train_set <- songs[sampler,]
+test_set <- songs[-sampler,]
+
+# transform the acousticness variable with logarithm
+songs <- songs %>%
+  mutate(acousticness = log(acousticness))
+
+songs[which(songs$instrumentalness==0),]$instrumentalness <- .0000001
+songs <- songs %>%
+  mutate(instrumentalness = log(instrumentalness))
+
+
+songs <- songs %>%
+  mutate(speechiness = log(speechiness))
+num_used <- select(songs, num_predictors)
+
+subgenres <- list("pop", "edm", "r&b", "metal", "rap", "country")
+```
+```{r}
+feature_names <- names(num_used)
+
+songs %>%
+  select(c('genre', feature_names)) %>%
+  pivot_longer(cols = feature_names) %>%
+  ggplot(aes(x = value)) +
+  geom_density(aes(color = genre), alpha = 0.9) +
+  facet_wrap(~name, ncol = 3, scales = 'free') +
+  labs(title = 'Spotify Audio Feature Density - by Genre',
+       x = '', y = 'density') +
+  theme(axis.text.y = element_blank()) + 
+  scale_color_brewer(palette = 'Set1')
+```
+
+# Neural Net in Keras
+
+First doing a naive model without a training/test split.
+
+```{r}
+nnet_songs <- songs %>% 
+  filter(genre %in% c('metal', 'country'))
+# rm(list=ls())
+```
+
+```{r}
+metal_country_songs <- nnet_songs[,num_predictors]
+metal_country_songs <- scale(metal_country_songs)   # note we scale here and conduct all subsequent clustering analysis on scaled data
+
+# Find the principal components (I like the prcomp function but you could also use princomp)
+pc <- prcomp(metal_country_songs)
+# pc
+
+plot(cumsum(pc$sdev^2/sum(pc$sdev^2)), main = 'Cumulative Variance Explained by Components', 
+     ylab="Explained", xlab="Component")
+
+pc_plot1 <- autoplot(pc, data = nnet_songs, main = "Plot of Song Data in PC Space")
+pc_plot2 <- autoplot(pc, data=nnet_songs, colour = "genre", main = "Plot of Song Data in PC Space") 
+
+plot_grid(                                    # uses cowplot library to arrange grid
+  pc_plot1, pc_plot2, 
+  nrow = 1
+)
+
+```
+
+```{r}
+k.max <- 10
+
+# Fit a kmeans cluster for each number of groups and calculate wthin sum of squares
+wss <- sapply(1:k.max, function(k){kmeans(metal_country_songs, k)$tot.withinss})
+
+plot(1:k.max, wss,
+     type="b", pch = 19, frame = FALSE, 
+     xlab="Number of clusters K",
+     ylab="Total within-clusters sum of squares")
+
+# Apply silhouette method to determine clusters
+fviz_nbclust(metal_country_songs, kmeans, method = "silhouette")
+
+km.out <- kmeans(metal_country_songs, 2, nstart=20)
+# km.out
+fviz_cluster(list(data = metal_country_songs, cluster = km.out$cluster))
+
+
+results.compare <- table(nnet_songs$genre, km.out$cluster)
+results.compare
+```
+
+```{r}
+d <- dist(metal_country_songs, method = "euclidean") 
+hc_ward <- agnes(d, method = "ward" ) 
+pltree(hc_ward, cex = 0.6, hang = -1, main="Ward Linkage")
+```
+
+```{r}
+hc_sub_grp <- cutree(hc_ward, k = 2)  # gives us a vector of the cluster assigned for each observation
+# Plot our clusters
+fviz_cluster(list(data = metal_country_songs, cluster = hc_sub_grp))
+```
+
+```{r}
+nnet_songs$genre <- as.factor(nnet_songs$genre)
+nnet_songs$genre <- relevel(nnet_songs$genre, ref = 'metal')
+hcward_results.compare<-data.frame(cbind(as.character(nnet_songs$genre), hc_sub_grp))
+hcward_results.compare$V1 <- as.factor(hcward_results.compare$V1)
+hcward_results.compare$V1 <- relevel(hcward_results.compare$V1, ref = 'metal')
+table(hcward_results.compare)
+(381+383)/800
+```
+
+
+```{r}
+library(keras)
+
+x <- scale(data.matrix(nnet_songs[,2:13]))  
+nnet_songs$genre <- as.factor(nnet_songs$genre)
+
+y <- to_categorical(as.numeric(nnet_songs$genre)-1, 2)  
+dimnames(x) <- NULL
+x.mean <-attributes(x)$'scaled:center'
+x.sd <- attributes(x)$'scaled:scale'
+
+song.keras <- keras_model_sequential() 
+layer_dense(song.keras, units = 50, activation = "relu", input_shape = 12,
+            kernel_regularizer = regularizer_l2(0.001) )        
+
+layer_dense(song.keras, units = 2, activation = "softmax",
+            kernel_regularizer = regularizer_l2(0.001) )          
+compile (song.keras,  loss = "categorical_crossentropy", optimizer = "sgd", metrics = "accuracy")
+                      
+val.rows <- sort (sample(800,160))     
+
+history <- fit(song.keras, 
+               x = x[-val.rows ,  ],  # omit the 30 for training
+               y = y[-val.rows ,  ],
+               validation_data = list(x[val.rows, ], y[val.rows, ] ), 
+               epochs = 450,                 
+               batch_size = 640              
+)
+plot(history) 
+# history <- fit(song.keras, 
+#                x = x[-val.rows ,  ],  
+#                y = y[-val.rows ,  ],
+#                validation_data = list(x[val.rows, ], y[val.rows, ] ), 
+#                epochs = 300,                
+#                batch_size = 40              
+# )
+
+c.hat <- predict_classes(song.keras, x) # Predicted classes start at 0,  C/Python style
+table(nnet_songs$genre, levels(nnet_songs$genre)[c.hat + 1]) # Better
+plot(history)
+# (389*2)/800
+```
+
+All genres nnet.
+
+```{r}
+x <- scale(data.matrix(songs[,2:13]))  
+songs$genre <- as.factor(songs$genre)
+
+y <- to_categorical(as.numeric(songs$genre)-1, 6)  
+dimnames(x) <- NULL
+x.mean <-attributes(x)$'scaled:center'
+x.sd <- attributes(x)$'scaled:scale'
+
+song.keras <- keras_model_sequential() 
+layer_dense(song.keras, units = 50, activation = "relu", input_shape = 12,
+            kernel_regularizer = regularizer_l2(0.001) )        
+
+layer_dense(song.keras, units = 6, activation = "softmax",
+            kernel_regularizer = regularizer_l2(0.001) )          
+compile (song.keras,  loss = "categorical_crossentropy", optimizer = "sgd", metrics = "accuracy")
+                      
+val.rows <- sort (sample(2400,480))     
+
+history <- fit(song.keras, 
+               x = x[-val.rows ,  ],  # omit the 30 for training
+               y = y[-val.rows ,  ],
+               validation_data = list(x[val.rows, ], y[val.rows, ] ), 
+               epochs = 500,                 
+               batch_size = 1920              
+)
+plot(history) 
+# history <- fit(song.keras, 
+#                x = x[-val.rows ,  ],  
+#                y = y[-val.rows ,  ],
+#                validation_data = list(x[val.rows, ], y[val.rows, ] ), 
+#                epochs = 300,                
+#                batch_size = 40              
+# )
+
+c.hat <- predict_classes(song.keras, x) # Predicted classes start at 0,  C/Python style
+tbl <- table(songs$genre, levels(songs$genre)[c.hat + 1]) # Better
+plot(history)
+tbl
+```
+
+```{r}
+1 - sum (diag (tbl)) / sum (tbl) # 21.3% error
+(242+149+380+53+207+242)/2400
+```
+
+
+```{r}
+song.matrix <- songs[,num_predictors]
+song.matrix <- scale(song.matrix)   # note we scale here and conduct all subsequent clustering analysis on scaled data
+
+# Find the principal components (I like the prcomp function but you could also use princomp)
+pc <- prcomp(song.matrix)
+pc
+```
+
+```{r}
+plot(cumsum(pc$sdev^2/sum(pc$sdev^2)), main = 'Cumulative Variance Explained by Components', 
+     ylab="Explained", xlab="Component")
+```
+
+```{r}
+pc_plot1 <- autoplot(pc, data = songs, main = "Plot of Song Data in PC Space")
+pc_plot2 <- autoplot(pc, data=songs, colour = "genre", main = "Plot of Song Data in PC Space") 
+
+plot_grid(                                    # uses cowplot library to arrange grid
+  pc_plot1, pc_plot2, 
+  nrow = 1
+)
+```
+
+```{r}
+k.max <- 10
+
+# Fit a kmeans cluster for each number of groups and calculate wthin sum of squares
+wss <- sapply(1:k.max, function(k){kmeans(song.matrix, k)$tot.withinss})
+wss
+```
+
+```{r}
+plot(1:k.max, wss,
+     type="b", pch = 19, frame = FALSE, 
+     xlab="Number of clusters K",
+     ylab="Total within-clusters sum of squares")
+```
+
+```{r}
+# Apply silhouette method to determine clusters
+fviz_nbclust(song.matrix, kmeans, method = "silhouette")
+```
+
+```{r}
+km.out <- kmeans(song.matrix, 6, nstart=20)
+# km.out
+fviz_cluster(list(data = song.matrix, cluster = km.out$cluster))
+```
+
+```{r}
+results.compare<-data.frame(cbind(as.character(songs$genre), km.out$cluster))
+table(results.compare)
+(19+31+30+18+95+247)/2400
+```
+
+```{r}
+song_new <- songs
+song_new[which(song_new$genre != 'metal'),'genre'] <- 'nonmetal' 
+```
+
+```{r}
+song.matrix.new <- song_new[,num_predictors]
+song.matrix.new <- scale(song.matrix.new)   # note we scale here and conduct all subsequent clustering analysis on scaled data
+
+# Find the principal components (I like the prcomp function but you could also use princomp)
+pc <- prcomp(song.matrix.new)
+# pc
+
+plot(cumsum(pc$sdev^2/sum(pc$sdev^2)), main = 'Cumulative Variance Explained by Components', 
+     ylab="Explained", xlab="Component")
+
+pc_plot1 <- autoplot(pc, data = song_new, main = "Plot of Song Data in PC Space")
+pc_plot2 <- autoplot(pc, data=song_new, colour = "genre", main = "Plot of Song Data in PC Space") 
+
+plot_grid(                                    # uses cowplot library to arrange grid
+  pc_plot1, pc_plot2, 
+  nrow = 1
+)
+```
+
+```{r}
+k.max <- 10
+
+# Fit a kmeans cluster for each number of groups and calculate wthin sum of squares
+wss <- sapply(1:k.max, function(k){kmeans(song.matrix.new, k)$tot.withinss})
+
+plot(1:k.max, wss,
+     type="b", pch = 19, frame = FALSE, 
+     xlab="Number of clusters K",
+     ylab="Total within-clusters sum of squares")
+
+# Apply silhouette method to determine clusters
+fviz_nbclust(song.matrix.new, kmeans, method = "silhouette")
+
+km.out <- kmeans(song.matrix.new, 2, nstart=20)
+# km.out
+fviz_cluster(list(data = song.matrix.new, cluster = km.out$cluster))
+
+results.compare<-data.frame(cbind(as.character(song_new$genre), km.out$cluster))
+table(results.compare)
+
+```
+
+```{r}
+d <- dist(song.matrix.new, method = "euclidean") 
+hc_ward <- agnes(d, method = "ward" ) 
+pltree(hc_ward, cex = 0.6, hang = -1, main="Ward Linkage")
+```
+
+```{r}
+hc_sub_grp <- cutree(hc_ward, k = 2)  # gives us a vector of the cluster assigned for each observation
+# Plot our clusters
+fviz_cluster(list(data = song.matrix.new, cluster = hc_sub_grp))
+```
+
+```{r}
+song_new$genre <- as.factor(song_new$genre)
+song_new$genre <- relevel(song_new$genre, ref = 'nonmetal')
+hcward_results.compare<-data.frame(cbind(as.character(song_new$genre), hc_sub_grp))
+hcward_results.compare$V1 <- as.factor(hcward_results.compare$V1)
+hcward_results.compare$V1 <- relevel(hcward_results.compare$V1, ref = 'nonmetal')
+table(hcward_results.compare)
+(1918+322)/2400
+```
+```{r}
+x <- scale(data.matrix(song_new[,2:13]))  
+song_new$genre <- as.factor(song_new$genre)
+
+y <- to_categorical(as.numeric(song_new$genre)-1, 2)  
+dimnames(x) <- NULL
+x.mean <-attributes(x)$'scaled:center'
+x.sd <- attributes(x)$'scaled:scale'
+
+song.keras <- keras_model_sequential() 
+layer_dense(song.keras, units = 50, activation = "relu", input_shape = 12,
+            kernel_regularizer = regularizer_l2(0.001) )        
+
+layer_dense(song.keras, units = 2, activation = "softmax",
+            kernel_regularizer = regularizer_l2(0.001) )          
+compile (song.keras,  loss = "categorical_crossentropy", optimizer = "sgd", metrics = "accuracy")
+                      
+val.rows <- sort (sample(800,160))     
+
+history <- fit(song.keras, 
+               x = x[-val.rows ,  ],  # omit the 30 for training
+               y = y[-val.rows ,  ],
+               validation_data = list(x[val.rows, ], y[val.rows, ] ), 
+               epochs = 450,                 
+               batch_size = 640              
+)
+plot(history) 
+# history <- fit(song.keras, 
+#                x = x[-val.rows ,  ],  
+#                y = y[-val.rows ,  ],
+#                validation_data = list(x[val.rows, ], y[val.rows, ] ), 
+#                epochs = 300,                
+#                batch_size = 40              
+# )
+
+c.hat <- predict_classes(song.keras, x) # Predicted classes start at 0,  C/Python style
+table(song_new$genre, levels(song_new$genre)[c.hat + 1]) # Better
+plot(history)
+(1969+344)/2400
+```
+
+
+Very good results with hcward method.
+
+```{r}
+# load in packages
+library(ranger)
+library(ipred)
+library(caret)
+library(randomForest)
+```
+
+
+
+
+```{r}
+songs <- read.csv('six_genre_features.csv')
+used_cols <- c('playlist_subgenre','danceability',
+               'energy','key','loudness','mode','speechiness','acousticness',
+               'instrumentalness', 'valence','tempo','duration_ms','track.popularity','liveness')
+songs_used <- as.data.frame(songs[, used_cols]) #data frame with the variables used
+songs_used$key <- as.factor(songs_used$key)
+songs_used$mode <- as.factor(songs_used$mode)
+songs_used$playlist_subgenre <- as.factor(songs_used$playlist_subgenre)
+songs_used <- subset(songs_used, select = -13)
+
+colnames(songs_used)[colnames(songs_used)=="duration_ms"]="duration"
+colnames(songs_used)[colnames(songs_used)=='playlist_subgenre']='genre'
+
+sampler <- sample(nrow(songs_used),trunc(nrow(songs_used)*.80)) # samples index
+Lecture.Train <- songs_used[sampler,]
+Lecture.Test <- songs_used[-sampler,]
+```
+
+
+
+
+```{r}
+# ANALYSIS ON ALL MUSIC GENRES
+RandomForest <- randomForest(genre ~ ., data=Lecture.Train, importance = TRUE, ntrees = 500, mtry=5)
+predClassRF <- predict(RandomForest, newdata = Lecture.Test, type = "response")
+
+
+
+genre.ranger <- ranger(genre ~ ., data = Lecture.Train, importance = "impurity")
+genre.the.bag <- bagging(genre ~ ., data = Lecture.Train)
+
+
+
+confusionMatrix(predClassRF , Lecture.Test$genre)
+table.ranger <- table(Lecture.Test$genre, predict(genre.ranger, Lecture.Test)$pred)
+table.bag <- table(Lecture.Test$genre, predict(genre.the.bag, Lecture.Test))
+
+
+
+table.ranger
+sum (diag (table.ranger)) / sum (table.ranger)
+
+
+
+table.bag
+sum (diag (table.bag)) / sum (table.bag)
+```
+
+
+
+```{r}
+#separate out metal and non-metal songs
+metal_songs <- songs_used
+metal_songs$genre <- as.character(metal_songs$genre)
+metal_songs$genre[metal_songs$genre!='metal'] <- 'nonmetal'
+metal_songs$genre <- as.factor(metal_songs$genre)
+
+
+
+Metal.Train <- metal_songs[sampler,]
+Metal.Test <- metal_songs[-sampler,]
+```
+
+
+
+```{r}
+# ANALYSIS ON METAL VS. NON-METAL
+RandomForest <- randomForest(genre ~ ., data=Metal.Train, importance = TRUE, ntrees = 500, mtry=5)
+predClassRF <- predict(RandomForest, newdata = Metal.Test, type = "response")
+
+
+
+genre.ranger <- ranger(genre ~ ., data = Metal.Train, importance = "impurity")
+genre.the.bag <- bagging(genre ~ ., data = Metal.Train)
+```
+
+
+
+
+```{r}
+confusionMatrix(predClassRF , Metal.Test$genre)
+table.ranger <- table(Metal.Test$genre, predict(genre.ranger, Metal.Test)$pred)
+table.bag <- table(Metal.Test$genre, predict(genre.the.bag, Metal.Test))
+
+
+
+table.ranger
+sum (diag (table.ranger)) / sum (table.ranger)
+
+
+
+table.bag
+sum (diag (table.bag)) / sum (table.bag)
+```
+
+
+
+
+```{r}
+# use only country & metal songs
+countrymteal <- songs_used[(songs_used$genre == 'metal' | songs_used$genre == 'country'),]
+
+
+
+countrymteal$genre <- droplevels(countrymteal$genre)
+
+
+
+# create test and train set
+sampler <- sample(nrow(countrymteal),trunc(nrow(countrymteal)*.80)) # samples index
+Lecture.Train <- countrymteal[sampler,]
+Lecture.Test <- countrymteal[-sampler,]
+```
+
+
+
+```{r}
+# ANALYSIS ON COUNTRY VS METAL
+RandomForest <- randomForest(genre ~ ., data=Lecture.Train, importance = TRUE, ntrees = 500, mtry=5)
+predClassRF <- predict(RandomForest, newdata = Lecture.Test, type = "response")
+
+
+
+genre.ranger <- ranger(genre ~ ., data = Lecture.Train, importance = "impurity")
+genre.the.bag <- bagging(genre ~ ., data = Lecture.Train)
+```
+
+
+
+
+```{r}
+confusionMatrix(predClassRF , Lecture.Test$genre)
+table.ranger <- table(Lecture.Test$genre, predict(genre.ranger, Lecture.Test)$pred)
+table.bag <- table(Lecture.Test$genre, predict(genre.the.bag, Lecture.Test))
+
+
+
+table.ranger
+sum (diag (table.ranger)) / sum (table.ranger)
+
+
+
+table.bag
+sum (diag (table.bag)) / sum (table.bag)
+```

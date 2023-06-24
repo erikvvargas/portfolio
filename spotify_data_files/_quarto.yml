@@ -1,0 +1,46 @@
+project:
+  type: book
+
+book:
+  title: "Portfolio"
+  author: "Erik King-Vargas"
+  date: "5/27/2023"
+  search: true
+  page-navigation: true
+  repo-url: https://github.com/erikvvargas/portfolio
+  sidebar:
+    tools:
+      - icon: rocket-takeoff
+        href: https://erik-king-vargas.carrd.co/
+      - icon: linkedin
+        href: https://www.linkedin.com/in/erikkingvargas/
+      - icon: envelope
+        href: mailto:erik.king.vargas@gmail.com
+  # links:
+  #   - icon: rocket-takeoff
+  #   href: https://erik-king-vargas.carrd.co/
+  chapters:
+    - index.qmd
+    - intro.qmd
+    - part: spotify.qmd
+      chapters:
+      - spotify_data.qmd
+    - part: another_analysis.qmd
+      chapters:
+      - ch1.qmd
+      - ch2.qmd
+    - summary.qmd
+    - references.qmd
+
+bibliography: references.bib
+
+format:
+  html:
+    theme:
+      light: flatly
+      dark: darkly
+  pdf:
+    documentclass: scrreprt
+
+
+

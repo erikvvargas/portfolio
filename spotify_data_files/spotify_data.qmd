@@ -1,0 +1,348 @@
+---
+execute:
+  echo: false
+  message: false
+  warning: false
+---
+
+# Spotify Data
+
+One of my favorite hobbies is listening to music. Not just through headphones or in the car, but listening to live music and experiencing all of the energy that comes with live performances. Some time ago I found out that R had a package, `spotifyr` @spotify_r, that was a wrapper for getting track audio features from Spotify's API. I started exploring the functionality of the package along with a few projects people had done (see )
+
+https://d2l.ai/index.html
+
+
+
+```{r preliminaries}
+library(tidyverse)
+library(GGally)
+library(corrplot)
+library(knitr)
+library(viridis)
+library(hrbrthemes)
+library(lubridate)
+library(plotly)
+library(recipes)
+library(caret)
+library(rsample)
+library(randomForest)
+library(ranger)
+
+
+s.dat.1 <- readRDS("songs_no_transform.rds")
+s.dat.2 <- readRDS("songs_log_transform.rds")
+metal.nonmetal <- readRDS("metal_nonmetal_split.rds")
+songs <- readRDS("songs_final.rds")
+```
+
+```{r data-cleaning}
+#| eval: false
+# change the three categorical variables into factors
+songs <- read.csv('genre_songs_8.csv')
+songs$key <- as.factor(songs$key)
+songs$mode <- as.factor(songs$mode)
+#songs$playlist_subgenre <- as.factor(songs$playlist_subgenre)
+
+#shorten name and turn to date object (lubridate)
+songs <- songs %>% 
+  mutate(release_date = as.Date(track.album.release_date))
+
+# dropping the release_Date column for missing dates
+songs <- songs %>% 
+  select(-release_date)
+
+songs <- songs %>% 
+  rename(duration = duration_ms,
+         genre = playlist_genre,
+         subgenre = playlist_subgenre)
+
+songs <- songs %>% 
+  mutate(genre = as.factor(genre))
+# remove duplicate songs based on track.id
+songs <- songs %>% 
+  distinct(track.id, .keep_all = TRUE)
+
+# convert from ms to minutes
+songs$duration <- songs$duration / 60000
+
+songs <- songs %>% 
+  filter(is.finite(acousticness))
+# rename some predictors
+# create predictor subsets
+saveRDS(songs, "songs_no_transform.rds")
+
+# transform the acousticness variable with logarithm
+songs[which(songs$acousticness==0),]$acousticness <- .0000001
+songs <- songs %>%
+  mutate(acousticness = log(acousticness))
+
+songs[which(songs$instrumentalness==0),]$instrumentalness <- .0000001
+songs <- songs %>%
+  mutate(instrumentalness = log(instrumentalness))
+
+songs[which(songs$speechiness==0),]$speechiness <- .0000001
+songs <- songs %>%
+  mutate(speechiness = log(speechiness))
+
+saveRDS(songs, "songs_log_transform.rds")
+
+# remove long duration songs
+
+songs <- songs %>% 
+  filter(duration < 10)
+
+# remove loudness > 0
+songs <- songs %>% 
+  filter(loudness <= 0) %>% 
+  mutate(loudness = loudness * -1)
+
+# make all negative numerical values positive
+songs <- songs %>% 
+  mutate(speechiness = speechiness * -1)
+
+songs <- songs %>% 
+  mutate(instrumentalness = instrumentalness * -1)
+
+songs <- songs %>% 
+  mutate(acousticness = acousticness * -1)
+
+# dummy variable for metal and nonmetal
+songs <- songs %>% 
+  mutate(metal = factor(case_when(genre == "metal" ~ 1,
+                           TRUE ~ 0)))
+
+saveRDS(songs, "songs_final.rds")
+# split the data into a smaller dataset with only metal and nonmetal labels
+# will be downsampling from the nonmetal dataset to the max number of metal songs
+metal.songs <- songs %>% 
+  filter(genre == "metal")
+nonmetal.songs <- songs %>% 
+  filter(genre != "metal") %>% 
+  sample_n(nrow(metal.songs))
+
+metal.sample <- rbind(metal.songs, nonmetal.songs)
+metal.sample <- metal.sample %>% 
+  select(-genre)
+saveRDS(metal.sample, "metal_nonmetal_split.rds")
+
+```
+
+```{r}
+songs %>%
+  is.na() %>%
+  reshape2::melt() %>%
+  ggplot(aes(Var2, Var1, fill=value)) + 
+    geom_raster() + 
+    coord_flip() +
+    scale_y_continuous(NULL, expand = c(0, 0)) +
+    scale_fill_grey(name = "", 
+                    labels = c("Present", 
+                               "Missing")) +
+    xlab("Observation") +
+    theme(axis.text.y  = element_text(size = 4))
+```
+
+```{r}
+cat_predictors <- c("genre", "key", "mode")
+cat_used <- select(songs, cat_predictors)
+
+
+#separate out the 9 numerical variables
+num_predictors <- c('danceability', 'energy','loudness','speechiness',
+                    'acousticness', 'instrumentalness', 'valence','tempo','duration','liveness')
+
+num_used <- select(songs, num_predictors)
+
+feature_names <- c(names(num_used), names(cat_used))
+
+```
+
+First things first, I needed data before I could analyze. I utilized some function calls to pull down data from Spotify's API with a few predetermined genres of music. From here, I read this in to R to begin exploring what data I had. There were some issues.
+
+```{r density-plot-1}
+
+s.dat.1 %>%
+  select(c('genre', feature_names)) %>%
+  pivot_longer(cols = feature_names) %>%
+  ggplot(aes(x = value)) +
+  geom_density(aes(color = genre), alpha = 0.9) +
+  facet_wrap(~name, ncol = 3, scales = 'free') +
+  labs(title = 'Spotify Audio Feature Density - by Genre',
+       x = '', y = 'density') +
+  theme(axis.text.y = element_blank()) + 
+  scale_color_brewer(palette = 'Set1')
+```
+Acousticness seems drastically skewed to the right and concentrated right around 0. Instrumentalness and Loudness seem to also have similar problems. Duration **seems** fine, but there's a large tail that extends to almost an hour and a half. There needs to be some cleaning done here to get the data into an easily analyzed format.
+
+```{r density-plot-2}
+s.dat.2 %>%
+  select(c('genre', feature_names)) %>%
+  pivot_longer(cols = feature_names) %>%
+  ggplot(aes(x = value)) +
+  geom_density(aes(color = genre), alpha = 0.9) +
+  facet_wrap(~name, ncol = 3, scales = 'free') +
+  labs(title = 'Spotify Audio Feature Density - by Genre',
+       x = '', y = 'density') +
+  theme(axis.text.y = element_blank()) + 
+  scale_color_brewer(palette = 'Set1')
+
+```
+
+This seems a bit better but duration still looks skewed so lets see why there is such a long tail to the right. First I'll start by looking at how many songs have a duration longer than 10 minutes.
+
+
+```{r duration-analysis}
+
+songs %>% 
+  filter(duration > 10) %>% summarise(Count = n())
+```
+
+There are only 99 songs with a duration longer than 10 minutes and the overall dataset has 36K songs. For the purposes of this analysis it's best to take these out as they don't represent the majority of the data. 
+
+One more look at the density plot before we start taking apart the features and looking towards prediction/classification.
+
+```{r density-plot-3}
+songs %>%
+  select(c('genre', feature_names)) %>%
+  pivot_longer(cols = feature_names) %>%
+  ggplot(aes(x = value)) +
+  geom_density(aes(color = genre), alpha = 0.9) +
+  facet_wrap(~name, ncol = 3, scales = 'free') +
+  labs(title = 'Spotify Audio Feature Density - by Genre',
+       x = '', y = 'density') +
+  theme(axis.text.y = element_blank()) + 
+  scale_color_brewer(palette = 'Set1')
+
+```
+
+
+
+## Exploratory Data Analysis
+
+
+```{r}
+# get a count of tracks in all genres
+songs %>% 
+  group_by(genre) %>% 
+  summarise(Count = n()) %>% 
+  kable(format = "html", caption = "Distribution of Song Counts by Genre",
+        col.names = c("Genre", "Count"))
+```
+
+```{r}
+songs %>%
+  sample_n(100) %>%
+  ggpairs(feature_names)
+
+# s = cor(songs[,c("speechiness", "acousticness")])
+# corrplot(s, method = "color")
+```
+
+
+```{r}
+#| eval: false
+# songs %>% 
+#   ggplot(aes(x = danceability, color = playlist_genre)) +
+#   geom_histogram(bins = 50) +
+#   facet_wrap(~ playlist_genre)
+
+songs %>% 
+  ggplot(aes(x = danceability, fill = genre, color = genre)) +
+  geom_histogram(alpha = 0.6) + 
+  scale_fill_viridis(discrete = TRUE) +
+  scale_color_viridis(discrete = TRUE) +
+  # theme_ipsum() +
+  # theme(
+  #   legend.position = "none",
+  #   panel.spacing = unit(0.1, "lines"),
+  #   strip.text.x = element_text(size = 8)
+  # )+
+  facet_wrap(~ genre)
+```
+
+
+## Data Separation for Modeling
+
+```{r}
+# split with all genres
+split1 <- initial_split(songs[feature_names], prop = .7) # samples index 
+
+train1 <- training(split1)
+test1 <- testing(split1)
+
+```
+
+
+```{r}
+# split with metal and nonmetal
+split2 <- initial_split(metal.nonmetal, prop = .7) # samples index 
+
+train2 <- training(split2)
+test2 <- testing(split2)
+```
+
+```{r}
+rf <- randomForest(genre~., data=train1, importance=TRUE) 
+print(rf)
+```
+
+```{r}
+p1 <- predict(rf, test1)
+confusionMatrix(p1, test1$genre)
+```
+
+```{r}
+plot(rf)
+```
+
+```{r}
+varImpPlot(rf,
+           sort = T,
+           n.var = 10,
+           main = "Top 10 - Variable Importance")
+```
+
+```{r}
+rf <- randomForest(metal~., data=train2, importance=TRUE) 
+print(rf)
+```
+
+```{r}
+p2 <- predict(rf, test2)
+confusionMatrix(p2, test2$metal)
+```
+
+```{r}
+plot(rf)
+```
+
+```{r}
+varImpPlot(rf,
+           sort = T,
+           n.var = 10,
+           main = "Top 10 - Variable Importance")
+```
+
+
+
+
+
+
+
+
+<!-- ```{r} -->
+<!-- library(reticulate) -->
+<!-- repl_python() -->
+<!-- ``` -->
+
+
+<!-- ```{python} -->
+<!-- import pandas as pd -->
+
+<!-- songs = pd.read_csv("H:\My Drive\Spotify_Project\genre_songs_8.csv", encoding = 'unicode_escape') -->
+<!-- ``` -->
+
+<!-- ```{python} -->
+<!-- songs.cols() -->
+<!-- ``` -->
+

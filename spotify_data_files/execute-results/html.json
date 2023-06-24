@@ -1,0 +1,16 @@
+{
+  "hash": "3a2daa0517536881e5e791a197ad81fd",
+  "result": {
+    "markdown": "---\nexecute:\n  echo: false\n  message: false\n  warning: false\n---\n\n\n# Spotify Data\n\nOne of my favorite hobbies is listening to music. Not just through headphones or in the car, but listening to live music and experiencing all of the energy that comes with live performances. Some time ago I found out that R had a package, `spotifyr` @spotify_r, that was a wrapper for getting track audio features from Spotify's API. I started exploring the functionality of the package along with a few projects people had done (see )\n\nhttps://d2l.ai/index.html\n\n\n::: {.cell}\n\n:::\n\n::: {.cell}\n\n:::\n\n## Exploratory Data Analysis\n\n\n::: {.cell}\n\n:::\n\n::: {.cell}\n::: {.cell-output-display}\n`````{=html}\n<table>\n<caption>Distribution of Song Counts by Genre</caption>\n <thead>\n  <tr>\n   <th style=\"text-align:left;\"> Genre </th>\n   <th style=\"text-align:right;\"> Count </th>\n  </tr>\n </thead>\n<tbody>\n  <tr>\n   <td style=\"text-align:left;\"> country </td>\n   <td style=\"text-align:right;\"> 4943 </td>\n  </tr>\n  <tr>\n   <td style=\"text-align:left;\"> edm </td>\n   <td style=\"text-align:right;\"> 5629 </td>\n  </tr>\n  <tr>\n   <td style=\"text-align:left;\"> latin </td>\n   <td style=\"text-align:right;\"> 4637 </td>\n  </tr>\n  <tr>\n   <td style=\"text-align:left;\"> metal </td>\n   <td style=\"text-align:right;\"> 5418 </td>\n  </tr>\n  <tr>\n   <td style=\"text-align:left;\"> pop </td>\n   <td style=\"text-align:right;\"> 5666 </td>\n  </tr>\n  <tr>\n   <td style=\"text-align:left;\"> r&amp;b </td>\n   <td style=\"text-align:right;\"> 5092 </td>\n  </tr>\n  <tr>\n   <td style=\"text-align:left;\"> rap </td>\n   <td style=\"text-align:right;\"> 5440 </td>\n  </tr>\n  <tr>\n   <td style=\"text-align:left;\"> rock </td>\n   <td style=\"text-align:right;\"> 4929 </td>\n  </tr>\n</tbody>\n</table>\n\n`````\n:::\n:::\n\n::: {.cell}\n\n:::\n\n::: {.cell}\n::: {.cell-output-display}\n![](spotify_data_files/figure-html/unnamed-chunk-10-1.png){width=672}\n:::\n:::\n\n\n## Data Cleaning\n\n\n::: {.cell}\n\n:::\n\n\n\n<!-- ```{r} -->\n<!-- library(reticulate) -->\n<!-- repl_python() -->\n<!-- ``` -->\n\n\n<!-- ```{python} -->\n<!-- import pandas as pd -->\n\n<!-- songs = pd.read_csv(\"H:\\My Drive\\Spotify_Project\\genre_songs_8.csv\", encoding = 'unicode_escape') -->\n<!-- ``` -->\n\n<!-- ```{python} -->\n<!-- songs.cols() -->\n<!-- ``` -->\n\n",
+    "supporting": [
+      "spotify_data_files"
+    ],
+    "filters": [
+      "rmarkdown/pagebreak.lua"
+    ],
+    "includes": {},
+    "engineDependencies": {},
+    "preserve": {},
+    "postProcess": true
+  }
+}
