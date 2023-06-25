@@ -11,8 +11,6 @@ One of my favorite hobbies is listening to music. Not just through headphones or
 
 https://d2l.ai/index.html
 
-
-
 ```{r preliminaries}
 library(tidyverse)
 library(GGally)
@@ -127,7 +125,8 @@ saveRDS(metal.sample, "metal_nonmetal_split.rds")
 
 ```
 
-```{r}
+```{r missing-data-visual}
+#| eval: false
 songs %>%
   is.na() %>%
   reshape2::melt() %>%
@@ -153,7 +152,7 @@ num_predictors <- c('danceability', 'energy','loudness','speechiness',
 
 num_used <- select(songs, num_predictors)
 
-feature_names <- c(names(num_used), names(cat_used))
+feature_names <- c(names(num_used))
 
 ```
 
@@ -172,6 +171,7 @@ s.dat.1 %>%
   theme(axis.text.y = element_blank()) + 
   scale_color_brewer(palette = 'Set1')
 ```
+
 Acousticness seems drastically skewed to the right and concentrated right around 0. Instrumentalness and Loudness seem to also have similar problems. Duration **seems** fine, but there's a large tail that extends to almost an hour and a half. There needs to be some cleaning done here to get the data into an easily analyzed format.
 
 ```{r density-plot-2}
@@ -190,14 +190,13 @@ s.dat.2 %>%
 
 This seems a bit better but duration still looks skewed so lets see why there is such a long tail to the right. First I'll start by looking at how many songs have a duration longer than 10 minutes.
 
-
 ```{r duration-analysis}
 
-songs %>% 
+s.dat.1 %>% 
   filter(duration > 10) %>% summarise(Count = n())
 ```
 
-There are only 99 songs with a duration longer than 10 minutes and the overall dataset has 36K songs. For the purposes of this analysis it's best to take these out as they don't represent the majority of the data. 
+There are only 99 songs with a duration longer than 10 minutes and the overall dataset has 36K songs. For the purposes of this analysis it's best to take these out as they don't represent the majority of the data.
 
 One more look at the density plot before we start taking apart the features and looking towards prediction/classification.
 
@@ -215,12 +214,9 @@ songs %>%
 
 ```
 
-
-
 ## Exploratory Data Analysis
 
-
-```{r}
+```{r genre-counts}
 # get a count of tracks in all genres
 songs %>% 
   group_by(genre) %>% 
@@ -229,7 +225,7 @@ songs %>%
         col.names = c("Genre", "Count"))
 ```
 
-```{r}
+```{r pairs-plot-all}
 songs %>%
   sample_n(100) %>%
   ggpairs(feature_names)
@@ -238,8 +234,7 @@ songs %>%
 # corrplot(s, method = "color")
 ```
 
-
-```{r}
+```{r danceability-hist}
 #| eval: false
 # songs %>% 
 #   ggplot(aes(x = danceability, color = playlist_genre)) +
@@ -260,10 +255,9 @@ songs %>%
   facet_wrap(~ genre)
 ```
 
-
 ## Data Separation for Modeling
 
-```{r}
+```{r split1}
 # split with all genres
 split1 <- initial_split(songs[feature_names], prop = .7) # samples index 
 
@@ -271,7 +265,6 @@ train1 <- training(split1)
 test1 <- testing(split1)
 
 ```
-
 
 ```{r}
 # split with metal and nonmetal
@@ -323,26 +316,31 @@ varImpPlot(rf,
            main = "Top 10 - Variable Importance")
 ```
 
+# Finding Separation in Metal and Nonmetal Genres
 
+Performing classification analysis on 8 genres leads to poor accuracy. While each song has many features, the differences may be too small to meaningfully differentiate one genre from another. However, there are still genres that we could certainly recognize as being starkly different. Metal happens to be my favorite genre, but I do listen to country from time to time and it would be hard to mistake one song from each genre for the other. I'll break this experiment out into two parts:
 
-
-
-
-
+1.  One experiment will be looking at metal songs vs. every other genre grouped together as "nonmetal"
+2.  A second experiment will look at metal vs. country music
 
 <!-- ```{r} -->
+
 <!-- library(reticulate) -->
+
 <!-- repl_python() -->
+
 <!-- ``` -->
 
-
 <!-- ```{python} -->
+
 <!-- import pandas as pd -->
 
 <!-- songs = pd.read_csv("H:\My Drive\Spotify_Project\genre_songs_8.csv", encoding = 'unicode_escape') -->
+
 <!-- ``` -->
 
 <!-- ```{python} -->
-<!-- songs.cols() -->
-<!-- ``` -->
 
+<!-- songs.cols() -->
+
+<!-- ``` -->
