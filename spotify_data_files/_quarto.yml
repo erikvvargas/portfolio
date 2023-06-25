@@ -22,13 +22,11 @@ book:
   chapters:
     - index.qmd
     - intro.qmd
-    - part: spotify.qmd
-      chapters:
-      - spotify_data.qmd
-    - part: another_analysis.qmd
-      chapters:
-      - ch1.qmd
-      - ch2.qmd
+    - spotify.qmd
+    - spotify_data.qmd
+    - another_analysis.qmd
+    - ch1.qmd
+    - ch2.qmd
     - summary.qmd
     - references.qmd
 

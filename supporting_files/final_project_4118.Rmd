@@ -117,17 +117,17 @@ nnet_songs <- songs %>%
 
 ```{r}
 metal_country_songs <- nnet_songs[,num_predictors]
-metal_country_songs <- scale(metal_country_songs)   # note we scale here and conduct all subsequent clustering analysis on scaled data
+# metal_country_songs <- scale(metal_country_songs)   # note we scale here and conduct all subsequent clustering analysis on scaled data
 
 # Find the principal components (I like the prcomp function but you could also use princomp)
-pc <- prcomp(metal_country_songs)
+pc <- prcomp(metal_country_songs, scale = TRUE)
 # pc
 
 plot(cumsum(pc$sdev^2/sum(pc$sdev^2)), main = 'Cumulative Variance Explained by Components', 
      ylab="Explained", xlab="Component")
 
 pc_plot1 <- autoplot(pc, data = nnet_songs, main = "Plot of Song Data in PC Space")
-pc_plot2 <- autoplot(pc, data=nnet_songs, colour = "genre", main = "Plot of Song Data in PC Space") 
+pc_plot2 <- autoplot(pc, data = nnet_songs, colour = "genre", main = "Plot of Song Data in PC Space") 
 
 plot_grid(                                    # uses cowplot library to arrange grid
   pc_plot1, pc_plot2, 

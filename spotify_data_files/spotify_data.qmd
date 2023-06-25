@@ -15,6 +15,9 @@ https://d2l.ai/index.html
 library(tidyverse)
 library(GGally)
 library(corrplot)
+library(ggfortify)
+library(gridExtra)
+library(cowplot) 
 library(knitr)
 library(viridis)
 library(hrbrthemes)
@@ -25,21 +28,33 @@ library(caret)
 library(rsample)
 library(randomForest)
 library(ranger)
+library(cluster)     # provides bottom-up clustering support
+library(factoextra)  # support for plotting of clusters
 
+library(dbscan)
+# RData file with all objects already saved down for speed purposes
+load("all_data_saved.RData")
+```
 
-s.dat.1 <- readRDS("data/songs_no_transform.rds")
-s.dat.2 <- readRDS("data/songs_log_transform.rds")
-metal.nonmetal <- readRDS("data/metal_nonmetal_split.rds")
-songs <- readRDS("data/songs_final.rds")
+```{r objects-to-save}
+#| eval: false
+# s.dat.1 <- readRDS("data/songs_no_transform.rds")
+# s.dat.2 <- readRDS("data/songs_log_transform.rds")
+# metal.nonmetal <- readRDS("data/metal_nonmetal_split.rds")
+# songs <- readRDS("data/songs_final.rds")
+
+data_saver <- c("s.dat.1", "s.dat.2", "songs", "metal.nonmetal")
+save(list = data_saver, file = "all_data_saved.RData")
+
 ```
 
 ```{r data-cleaning}
 #| eval: false
 # change the three categorical variables into factors
-songs <- read.csv('genre_songs_8.csv')
+songs <- read.csv('data/genre_songs_8.csv')
 songs$key <- as.factor(songs$key)
 songs$mode <- as.factor(songs$mode)
-#songs$playlist_subgenre <- as.factor(songs$playlist_subgenre)
+
 
 #shorten name and turn to date object (lubridate)
 songs <- songs %>% 
@@ -49,13 +64,16 @@ songs <- songs %>%
 songs <- songs %>% 
   select(-release_date)
 
+# renaming columns to make analysis easier
 songs <- songs %>% 
   rename(duration = duration_ms,
          genre = playlist_genre,
          subgenre = playlist_subgenre)
 
+# genre should be categorical not character
 songs <- songs %>% 
   mutate(genre = as.factor(genre))
+
 # remove duplicate songs based on track.id
 songs <- songs %>% 
   distinct(track.id, .keep_all = TRUE)
@@ -65,11 +83,12 @@ songs$duration <- songs$duration / 60000
 
 songs <- songs %>% 
   filter(is.finite(acousticness))
-# rename some predictors
-# create predictor subsets
-saveRDS(songs, "songs_no_transform.rds")
 
-# transform the acousticness variable with logarithm
+# create predictor subsets
+s.dat.1 <- songs
+# saveRDS(songs, "songs_no_transform.rds")
+
+# transform the variables with logarithm
 songs[which(songs$acousticness==0),]$acousticness <- .0000001
 songs <- songs %>%
   mutate(acousticness = log(acousticness))
@@ -82,10 +101,11 @@ songs[which(songs$speechiness==0),]$speechiness <- .0000001
 songs <- songs %>%
   mutate(speechiness = log(speechiness))
 
-saveRDS(songs, "songs_log_transform.rds")
+
+s.dat.2 <- songs
+# saveRDS(songs, "songs_log_transform.rds")
 
 # remove long duration songs
-
 songs <- songs %>% 
   filter(duration < 10)
 
@@ -109,7 +129,8 @@ songs <- songs %>%
   mutate(metal = factor(case_when(genre == "metal" ~ 1,
                            TRUE ~ 0)))
 
-saveRDS(songs, "songs_final.rds")
+# saveRDS(songs, "songs_final.rds")
+
 # split the data into a smaller dataset with only metal and nonmetal labels
 # will be downsampling from the nonmetal dataset to the max number of metal songs
 metal.songs <- songs %>% 
@@ -118,10 +139,11 @@ nonmetal.songs <- songs %>%
   filter(genre != "metal") %>% 
   sample_n(nrow(metal.songs))
 
-metal.sample <- rbind(metal.songs, nonmetal.songs)
-metal.sample <- metal.sample %>% 
+metal.nonmetal <- rbind(metal.songs, nonmetal.songs)
+metal.nonmetal <- metal.nonmetal %>% 
   select(-genre)
-saveRDS(metal.sample, "metal_nonmetal_split.rds")
+
+# saveRDS(metal.sample, "metal_nonmetal_split.rds")
 
 ```
 
@@ -141,7 +163,7 @@ songs %>%
     theme(axis.text.y  = element_text(size = 4))
 ```
 
-```{r}
+```{r variable-separation}
 cat_predictors <- c("genre", "key", "mode")
 cat_used <- select(songs, cat_predictors)
 
@@ -159,8 +181,8 @@ feature_names <- c(names(num_used))
 First things first, I needed data before I could analyze. I utilized some function calls to pull down data from Spotify's API with a few predetermined genres of music. From here, I read this in to R to begin exploring what data I had. There were some issues.
 
 ```{r density-plot-1}
-
-s.dat.1 %>%
+#| eval: false
+p1 <- s.dat.1 %>%
   select(c('genre', feature_names)) %>%
   pivot_longer(cols = feature_names) %>%
   ggplot(aes(x = value)) +
@@ -170,12 +192,16 @@ s.dat.1 %>%
        x = '', y = 'density') +
   theme(axis.text.y = element_blank()) + 
   scale_color_brewer(palette = 'Set1')
+ggsave("density_plot_1.png", p1)
 ```
+
+![](figs/density_plot_1.png)
 
 Acousticness seems drastically skewed to the right and concentrated right around 0. Instrumentalness and Loudness seem to also have similar problems. Duration **seems** fine, but there's a large tail that extends to almost an hour and a half. There needs to be some cleaning done here to get the data into an easily analyzed format.
 
 ```{r density-plot-2}
-s.dat.2 %>%
+#| eval: false
+p2 <- s.dat.2 %>%
   select(c('genre', feature_names)) %>%
   pivot_longer(cols = feature_names) %>%
   ggplot(aes(x = value)) +
@@ -185,8 +211,11 @@ s.dat.2 %>%
        x = '', y = 'density') +
   theme(axis.text.y = element_blank()) + 
   scale_color_brewer(palette = 'Set1')
+ggsave("density_plot_2.png", p2)
 
 ```
+
+![](figs/density_plot_2.png)
 
 This seems a bit better but duration still looks skewed so lets see why there is such a long tail to the right. First I'll start by looking at how many songs have a duration longer than 10 minutes.
 
@@ -201,7 +230,8 @@ There are only 99 songs with a duration longer than 10 minutes and the overall d
 One more look at the density plot before we start taking apart the features and looking towards prediction/classification.
 
 ```{r density-plot-3}
-songs %>%
+#| eval: false
+p3 <- songs %>%
   select(c('genre', feature_names)) %>%
   pivot_longer(cols = feature_names) %>%
   ggplot(aes(x = value)) +
@@ -211,28 +241,36 @@ songs %>%
        x = '', y = 'density') +
   theme(axis.text.y = element_blank()) + 
   scale_color_brewer(palette = 'Set1')
+ggsave("density_plot_3.png", p3)
 
 ```
 
-## Exploratory Data Analysis
+![](figs/density_plot_3.png)
+
+# Exploratory Data Analysis
 
 ```{r genre-counts}
 # get a count of tracks in all genres
 songs %>% 
   group_by(genre) %>% 
   summarise(Count = n()) %>% 
-  kable(format = "html", caption = "Distribution of Song Counts by Genre",
+  kable(caption = "Distribution of Song Counts by Genre",
         col.names = c("Genre", "Count"))
 ```
 
 ```{r pairs-plot-all}
-songs %>%
+#| eval: false
+p4 <- songs %>%
   sample_n(100) %>%
   ggpairs(feature_names)
 
+ggsave("pairs_plot_1.png", p4)
 # s = cor(songs[,c("speechiness", "acousticness")])
 # corrplot(s, method = "color")
 ```
+
+![](figs/pairs_plot_1.png)
+
 
 ```{r danceability-hist}
 #| eval: false
@@ -255,7 +293,7 @@ songs %>%
   facet_wrap(~ genre)
 ```
 
-## Data Separation for Modeling
+# Data Separation for Modeling
 
 ```{r split1}
 # split with all genres
@@ -275,20 +313,24 @@ test2 <- testing(split2)
 ```
 
 ```{r}
+#| eval: false
 rf <- randomForest(genre~., data=train1, importance=TRUE) 
 print(rf)
 ```
 
 ```{r}
+#| eval: false
 p1 <- predict(rf, test1)
 confusionMatrix(p1, test1$genre)
 ```
 
 ```{r}
+#| eval: false
 plot(rf)
 ```
 
 ```{r}
+#| eval: false
 varImpPlot(rf,
            sort = T,
            n.var = 10,
@@ -296,20 +338,24 @@ varImpPlot(rf,
 ```
 
 ```{r}
+#| eval: false
 rf <- randomForest(metal~., data=train2, importance=TRUE) 
 print(rf)
 ```
 
 ```{r}
+#| eval: false
 p2 <- predict(rf, test2)
 confusionMatrix(p2, test2$metal)
 ```
 
 ```{r}
+#| eval: false
 plot(rf)
 ```
 
 ```{r}
+#| eval: false
 varImpPlot(rf,
            sort = T,
            n.var = 10,
@@ -322,6 +368,32 @@ Performing classification analysis on 8 genres leads to poor accuracy. While eac
 
 1.  One experiment will be looking at metal songs vs. every other genre grouped together as "nonmetal"
 2.  A second experiment will look at metal vs. country music
+
+## Metal and Nonmetal
+
+## Metal and Country
+
+```{r}
+metal.country <- songs %>% 
+  filter(genre %in% c('metal', 'country')) %>% 
+  sample_n(2000)
+
+data <- metal.country[,num_predictors]
+# metal_country_songs <- scale(metal_country_songs)   # note we scale here and conduct all subsequent clustering analysis on scaled data
+
+# Find the principal components (I like the prcomp function but you could also use princomp)
+pc <- prcomp(data, scale = TRUE)
+# pc
+
+plot(cumsum(pc$sdev^2/sum(pc$sdev^2)), main = 'Cumulative Variance Explained by Components', 
+     ylab="Explained", xlab="Component")
+
+pc_plot1 <- autoplot(pc, data = metal.country, main = "Plot of Song Data in PC Space")
+pc_plot2 <- autoplot(pc, data = metal.country, colour = "genre", main = "Plot of Song Data in PC Space", alpha = 0.5) 
+
+pc_plot1
+pc_plot2
+```
 
 <!-- ```{r} -->
 
