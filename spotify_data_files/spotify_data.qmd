@@ -29,10 +29,10 @@ library(randomForest)
 library(ranger)
 
 
-s.dat.1 <- readRDS("songs_no_transform.rds")
-s.dat.2 <- readRDS("songs_log_transform.rds")
-metal.nonmetal <- readRDS("metal_nonmetal_split.rds")
-songs <- readRDS("songs_final.rds")
+s.dat.1 <- readRDS("data/songs_no_transform.rds")
+s.dat.2 <- readRDS("data/songs_log_transform.rds")
+metal.nonmetal <- readRDS("data/metal_nonmetal_split.rds")
+songs <- readRDS("data/songs_final.rds")
 ```
 
 ```{r data-cleaning}
