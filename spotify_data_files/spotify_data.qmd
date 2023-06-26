@@ -165,14 +165,15 @@ songs %>%
 
 ```{r variable-separation}
 cat_predictors <- c("genre", "key", "mode")
-cat_used <- select(songs, cat_predictors)
+# cat_used <- select(songs, cat_predictors)
 
 
 #separate out the 9 numerical variables
 num_predictors <- c('danceability', 'energy','loudness','speechiness',
                     'acousticness', 'instrumentalness', 'valence','tempo','duration','liveness')
 
-num_used <- select(songs, num_predictors)
+# num_used <- select(songs, num_predictors)
+predictors <- c(cat_predictors, num_predictors)
 
 feature_names <- c(names(num_used))
 
@@ -375,8 +376,61 @@ Performing classification analysis on 8 genres leads to poor accuracy. While eac
 
 ```{r}
 metal.country <- songs %>% 
-  filter(genre %in% c('metal', 'country')) %>% 
-  sample_n(2000)
+  filter(genre %in% c('metal', 'country'))
+metal.country <- metal.country[,predictors]
+
+metal.country$genre <- droplevels(metal.country$genre)
+
+split1 <- initial_split(metal.country, prop = .7) # samples index
+
+train1 <- training(split1)
+test1 <- testing(split1)
+```
+
+
+Starting with logistic regression.
+
+```{r}
+cv.model.1 <- train(
+  genre ~ .,
+  data = train1,
+  method = "glm",
+  family = "binomial",
+  trControl = trainControl(method = "cv", number = 10)
+)
+
+```
+
+Predicted classes and performance.
+
+```{r}
+preds <- predict(cv.model.1, test1)
+
+confusionMatrix(
+  data = relevel(preds, ref = "metal"),
+  reference = relevel(test1$genre, ref = "metal")
+)
+```
+
+Random forest example.
+
+```{r}
+rf1 <- ranger(
+  genre ~ .,
+  data = train1,
+  mtry = 4,
+  respect.unordered.factors = "order"
+)
+
+preds <- predict(rf1, data = test1)
+table(test1$genre, preds$predictions)
+(1152+1308)/nrow(test1)
+```
+
+
+
+```{r}
+
 
 data <- metal.country[,num_predictors]
 # metal_country_songs <- scale(metal_country_songs)   # note we scale here and conduct all subsequent clustering analysis on scaled data
@@ -388,12 +442,44 @@ pc <- prcomp(data, scale = TRUE)
 plot(cumsum(pc$sdev^2/sum(pc$sdev^2)), main = 'Cumulative Variance Explained by Components', 
      ylab="Explained", xlab="Component")
 
-pc_plot1 <- autoplot(pc, data = metal.country, main = "Plot of Song Data in PC Space")
+# pc_plot1 <- autoplot(pc, data = metal.country, main = "Plot of Song Data in PC Space")
 pc_plot2 <- autoplot(pc, data = metal.country, colour = "genre", main = "Plot of Song Data in PC Space", alpha = 0.5) 
 
-pc_plot1
+# pc_plot1
 pc_plot2
 ```
+
+
+```{r}
+components <- pc[["x"]]
+
+components <- data.frame(components)
+
+components$PC2 <- -components$PC2
+
+components$PC3 <- -components$PC3
+
+components = cbind(components, metal.country$genre)
+
+fig <- plot_ly(components, x = ~PC1, y = ~PC2, z = ~PC3, color = ~metal.country$genre, colors = c('#636EFA','#EF553B','#00CC96') ) %>%
+
+  add_markers(size = 12)
+
+
+
+fig <- fig %>%
+
+  layout(
+
+
+    scene = list(bgcolor = "#e5ecf6")
+
+)
+
+
+fig
+```
+
 
 <!-- ```{r} -->
 
