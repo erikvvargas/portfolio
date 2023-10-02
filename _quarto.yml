@@ -22,13 +22,7 @@ book:
   #   href: https://erik-king-vargas.carrd.co/
   chapters:
     - index.qmd
-    - intro.qmd
-    - spotify.qmd
     - spotify_data.qmd
-    - another_analysis.qmd
-    - ch1.qmd
-    - ch2.qmd
-    - summary.qmd
     - references.qmd
 
 bibliography: references.bib
