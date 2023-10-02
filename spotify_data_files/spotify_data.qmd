@@ -172,7 +172,7 @@ cat_predictors <- c("genre", "key", "mode")
 num_predictors <- c('danceability', 'energy','loudness','speechiness',
                     'acousticness', 'instrumentalness', 'valence','tempo','duration','liveness')
 
-# num_used <- select(songs, num_predictors)
+num_used <- select(songs, num_predictors)
 predictors <- c(cat_predictors, num_predictors)
 
 feature_names <- c(names(num_used))
@@ -450,7 +450,7 @@ pc_plot2
 ```
 
 
-```{r}
+```{r, eval=FALSE}
 components <- pc[["x"]]
 
 components <- data.frame(components)
