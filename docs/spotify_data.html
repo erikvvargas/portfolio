@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Portfolio - 1&nbsp; Spotify Feature Analysis</title>
+<title>Portfolio - 1&nbsp; Spotify Data Analysis</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -91,7 +91,7 @@ div.csl-indent {
   <header id="quarto-header" class="headroom fixed-top">
   <nav class="quarto-secondary-nav" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
     <div class="container-fluid d-flex justify-content-between">
-      <h1 class="quarto-secondary-nav-title"><span class="chapter-number">1</span>&nbsp; <span class="chapter-title">Spotify Feature Analysis</span></h1>
+      <h1 class="quarto-secondary-nav-title"><span class="chapter-title">Spotify Data Analysis</span></h1>
       <button type="button" class="quarto-btn-toggle btn" aria-label="Show secondary navigation">
         <i class="bi bi-chevron-right"></i>
       </button>
@@ -128,7 +128,7 @@ div.csl-indent {
 </li>
         <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./spotify_data.html" class="sidebar-item-text sidebar-link active"><span class="chapter-number">1</span>&nbsp; <span class="chapter-title">Spotify Feature Analysis</span></a>
+  <a href="./spotify_data.html" class="sidebar-item-text sidebar-link active"><span class="chapter-title">Spotify Data Analysis</span></a>
   </div>
 </li>
         <li class="sidebar-item">
@@ -145,12 +145,12 @@ div.csl-indent {
     <h2 id="toc-title">Table of contents</h2>
    
   <ul>
-  <li><a href="#exploratory-data-analysis" id="toc-exploratory-data-analysis" class="nav-link active" data-scroll-target="#exploratory-data-analysis"><span class="toc-section-number">2</span>  Exploratory Data Analysis</a></li>
-  <li><a href="#data-separation-for-modeling" id="toc-data-separation-for-modeling" class="nav-link" data-scroll-target="#data-separation-for-modeling"><span class="toc-section-number">3</span>  Data Separation for Modeling</a></li>
-  <li><a href="#finding-separation-in-metal-and-nonmetal-genres" id="toc-finding-separation-in-metal-and-nonmetal-genres" class="nav-link" data-scroll-target="#finding-separation-in-metal-and-nonmetal-genres"><span class="toc-section-number">4</span>  Finding Separation in Metal and Nonmetal Genres</a>
+  <li><a href="#exploratory-data-analysis" id="toc-exploratory-data-analysis" class="nav-link active" data-scroll-target="#exploratory-data-analysis">Exploratory Data Analysis</a></li>
+  <li><a href="#data-separation-for-modeling" id="toc-data-separation-for-modeling" class="nav-link" data-scroll-target="#data-separation-for-modeling">Data Separation for Modeling</a></li>
+  <li><a href="#finding-separation-in-metal-and-nonmetal-genres" id="toc-finding-separation-in-metal-and-nonmetal-genres" class="nav-link" data-scroll-target="#finding-separation-in-metal-and-nonmetal-genres">Finding Separation in Metal and Nonmetal Genres</a>
   <ul class="collapse">
-  <li><a href="#metal-and-nonmetal" id="toc-metal-and-nonmetal" class="nav-link" data-scroll-target="#metal-and-nonmetal"><span class="toc-section-number">4.1</span>  Metal and Nonmetal</a></li>
-  <li><a href="#metal-and-country" id="toc-metal-and-country" class="nav-link" data-scroll-target="#metal-and-country"><span class="toc-section-number">4.2</span>  Metal and Country</a></li>
+  <li><a href="#metal-and-nonmetal" id="toc-metal-and-nonmetal" class="nav-link" data-scroll-target="#metal-and-nonmetal">Metal and Nonmetal</a></li>
+  <li><a href="#metal-and-country" id="toc-metal-and-country" class="nav-link" data-scroll-target="#metal-and-country">Metal and Country</a></li>
   </ul></li>
   </ul>
 </nav>
@@ -160,7 +160,7 @@ div.csl-indent {
 
 <header id="title-block-header" class="quarto-title-block default">
 <div class="quarto-title">
-<h1 class="title d-none d-lg-block"><span class="chapter-number">1</span>&nbsp; <span class="chapter-title">Spotify Feature Analysis</span></h1>
+<h1 class="title d-none d-lg-block"><span class="chapter-title">Spotify Data Analysis</span></h1>
 </div>
 
 
@@ -215,8 +215,8 @@ div.csl-indent {
 
 </div>
 <p><img src="figs/density_plot_3.png" class="img-fluid"></p>
-<section id="exploratory-data-analysis" class="level1" data-number="2">
-<h1 data-number="2"><span class="header-section-number">2</span> Exploratory Data Analysis</h1>
+<section id="exploratory-data-analysis" class="level1">
+<h1>Exploratory Data Analysis</h1>
 <div class="cell">
 <div class="cell-output-display">
 <table class="table table-sm table-striped">
@@ -272,8 +272,8 @@ div.csl-indent {
 
 </div>
 </section>
-<section id="data-separation-for-modeling" class="level1" data-number="3">
-<h1 data-number="3"><span class="header-section-number">3</span> Data Separation for Modeling</h1>
+<section id="data-separation-for-modeling" class="level1">
+<h1>Data Separation for Modeling</h1>
 <div class="cell">
 
 </div>
@@ -305,18 +305,18 @@ div.csl-indent {
 
 </div>
 </section>
-<section id="finding-separation-in-metal-and-nonmetal-genres" class="level1" data-number="4">
-<h1 data-number="4"><span class="header-section-number">4</span> Finding Separation in Metal and Nonmetal Genres</h1>
+<section id="finding-separation-in-metal-and-nonmetal-genres" class="level1">
+<h1>Finding Separation in Metal and Nonmetal Genres</h1>
 <p>Performing classification analysis on 8 genres leads to poor accuracy. While each song has many features, the differences may be too small to meaningfully differentiate one genre from another. However, there are still genres that we could certainly recognize as being starkly different. Metal happens to be my favorite genre, but I do listen to country from time to time and it would be hard to mistake one song from each genre for the other. I’ll break this experiment out into two parts:</p>
 <ol type="1">
 <li>One experiment will be looking at metal songs vs.&nbsp;every other genre grouped together as “nonmetal”</li>
 <li>A second experiment will look at metal vs.&nbsp;country music</li>
 </ol>
-<section id="metal-and-nonmetal" class="level2" data-number="4.1">
-<h2 data-number="4.1" class="anchored" data-anchor-id="metal-and-nonmetal"><span class="header-section-number">4.1</span> Metal and Nonmetal</h2>
+<section id="metal-and-nonmetal" class="level2">
+<h2 class="anchored" data-anchor-id="metal-and-nonmetal">Metal and Nonmetal</h2>
 </section>
-<section id="metal-and-country" class="level2" data-number="4.2">
-<h2 data-number="4.2" class="anchored" data-anchor-id="metal-and-country"><span class="header-section-number">4.2</span> Metal and Country</h2>
+<section id="metal-and-country" class="level2">
+<h2 class="anchored" data-anchor-id="metal-and-country">Metal and Country</h2>
 <div class="cell">
 
 </div>
@@ -331,26 +331,26 @@ div.csl-indent {
 
           Reference
 Prediction metal country
-   metal    1296     163
-   country   201    1122
+   metal    1276     117
+   country   222    1167
                                           
-               Accuracy : 0.8692          
-                 95% CI : (0.8561, 0.8815)
-    No Information Rate : 0.5381          
-    P-Value [Acc &gt; NIR] : &lt; 2e-16         
+               Accuracy : 0.8781          
+                 95% CI : (0.8654, 0.8901)
+    No Information Rate : 0.5385          
+    P-Value [Acc &gt; NIR] : &lt; 2.2e-16       
                                           
-                  Kappa : 0.7373          
+                  Kappa : 0.7563          
                                           
- Mcnemar's Test P-Value : 0.05246         
+ Mcnemar's Test P-Value : 1.618e-08       
                                           
-            Sensitivity : 0.8657          
-            Specificity : 0.8732          
-         Pos Pred Value : 0.8883          
-         Neg Pred Value : 0.8481          
-             Prevalence : 0.5381          
-         Detection Rate : 0.4659          
-   Detection Prevalence : 0.5244          
-      Balanced Accuracy : 0.8694          
+            Sensitivity : 0.8518          
+            Specificity : 0.9089          
+         Pos Pred Value : 0.9160          
+         Neg Pred Value : 0.8402          
+             Prevalence : 0.5385          
+         Detection Rate : 0.4587          
+   Detection Prevalence : 0.5007          
+      Balanced Accuracy : 0.8803          
                                           
        'Positive' Class : metal           
                                           </code></pre>
@@ -361,8 +361,8 @@ Prediction metal country
 <div class="cell-output cell-output-stdout">
 <pre><code>         
           country metal
-  country    1142   143
-  metal       163  1334</code></pre>
+  country    1180   104
+  metal       194  1304</code></pre>
 </div>
 <div class="cell-output cell-output-stdout">
 <pre><code>[1] 0.8842559</code></pre>
