@@ -1,0 +1,72 @@
+[
+  {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "Portfolio",
+    "section": "",
+    "text": "Index\nThis is a Quarto book.\nThis is a line.\nTo learn more about Quarto books visit https://quarto.org/docs/books.\n\n1 + 1\n\n[1] 2"
+  },
+  {
+    "objectID": "intro.html",
+    "href": "intro.html",
+    "title": "1  Introduction",
+    "section": "",
+    "text": "2 Second Intro"
+  },
+  {
+    "objectID": "intro.html#maybe-a-subsection",
+    "href": "intro.html#maybe-a-subsection",
+    "title": "1  Introduction",
+    "section": "1.1 Maybe a subsection",
+    "text": "1.1 Maybe a subsection"
+  },
+  {
+    "objectID": "intro.html#subsection-2",
+    "href": "intro.html#subsection-2",
+    "title": "1  Introduction",
+    "section": "1.2 Subsection 2",
+    "text": "1.2 Subsection 2"
+  },
+  {
+    "objectID": "spotify_data.html",
+    "href": "spotify_data.html",
+    "title": "3  Spotify Data",
+    "section": "",
+    "text": "4 Exploratory Data Analysis\nPerforming classification analysis on 8 genres leads to poor accuracy. While each song has many features, the differences may be too small to meaningfully differentiate one genre from another. However, there are still genres that we could certainly recognize as being starkly different. Metal happens to be my favorite genre, but I do listen to country from time to time and it would be hard to mistake one song from each genre for the other. I’ll break this experiment out into two parts:"
+  },
+  {
+    "objectID": "spotify_data.html#metal-and-nonmetal",
+    "href": "spotify_data.html#metal-and-nonmetal",
+    "title": "3  Spotify Data",
+    "section": "6.1 Metal and Nonmetal",
+    "text": "6.1 Metal and Nonmetal"
+  },
+  {
+    "objectID": "spotify_data.html#metal-and-country",
+    "href": "spotify_data.html#metal-and-country",
+    "title": "3  Spotify Data",
+    "section": "6.2 Metal and Country",
+    "text": "6.2 Metal and Country\n\n\n\nStarting with logistic regression.\n\n\n\nPredicted classes and performance.\n\n\nConfusion Matrix and Statistics\n\n          Reference\nPrediction metal country\n   metal    1265     138\n   country   211    1168\n                                          \n               Accuracy : 0.8746          \n                 95% CI : (0.8617, 0.8866)\n    No Information Rate : 0.5306          \n    P-Value [Acc > NIR] : < 2.2e-16       \n                                          \n                  Kappa : 0.749           \n                                          \n Mcnemar's Test P-Value : 0.0001162       \n                                          \n            Sensitivity : 0.8570          \n            Specificity : 0.8943          \n         Pos Pred Value : 0.9016          \n         Neg Pred Value : 0.8470          \n             Prevalence : 0.5306          \n         Detection Rate : 0.4547          \n   Detection Prevalence : 0.5043          \n      Balanced Accuracy : 0.8757          \n                                          \n       'Positive' Class : metal           \n                                          \n\n\nRandom forest example.\n\n\n         \n          country metal\n  country    1175   131\n  metal       184  1292\n\n\n[1] 0.8842559\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nThomas, Charlie. 2022. “Spotifyr Documentation.” 2022. http://www.rcharlie.com/spotifyr/."
+  },
+  {
+    "objectID": "another_analysis.html",
+    "href": "another_analysis.html",
+    "title": "4  Another Analysis Title",
+    "section": "",
+    "text": "And more text."
+  },
+  {
+    "objectID": "summary.html",
+    "href": "summary.html",
+    "title": "7  Summary",
+    "section": "",
+    "text": "In summary, this book has no content whatsoever.\n\n1 + 1\n\n[1] 2"
+  },
+  {
+    "objectID": "references.html",
+    "href": "references.html",
+    "title": "References",
+    "section": "",
+    "text": "Knuth, Donald E. 1984. “Literate Programming.” Comput.\nJ. 27 (2): 97–111. https://doi.org/10.1093/comjnl/27.2.97.\n\n\nThomas, Charlie. 2022. “Spotifyr Documentation.” 2022. http://www.rcharlie.com/spotifyr/."
+  }
+]
