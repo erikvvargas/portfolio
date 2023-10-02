@@ -5,7 +5,7 @@ project:
 book:
   title: "Portfolio"
   author: "Erik King-Vargas"
-  date: "5/27/2023"
+  date: '`r format(Sys.Date(), "%B %d, %Y")`'
   search: true
   page-navigation: true
   repo-url: https://github.com/erikvvargas/portfolio
