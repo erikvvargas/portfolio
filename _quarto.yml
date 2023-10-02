@@ -5,13 +5,13 @@ project:
 book:
   title: "Portfolio"
   author: "Erik King-Vargas"
-  date: "10/2/2023"
+  date: 10/2/2023
   search: true
   page-navigation: true
   repo-url: https://github.com/erikvvargas/portfolio
   sidebar:
     tools:
-      - icon: rocket-takeoff
+      - icon: share-fill
         href: https://erik-king-vargas.carrd.co/
       - icon: linkedin
         href: https://www.linkedin.com/in/erikkingvargas/
