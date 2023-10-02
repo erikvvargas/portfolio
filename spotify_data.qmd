@@ -29,7 +29,8 @@ library(rsample)
 library(randomForest)
 library(ranger)
 library(cluster)     # provides bottom-up clustering support
-library(factoextra)  # support for plotting of clusters
+library(factoextra)
+library(htmlwidgets)# support for plotting of clusters
 
 library(dbscan)
 # RData file with all objects already saved down for speed purposes
@@ -231,7 +232,7 @@ There are only 99 songs with a duration longer than 10 minutes and the overall d
 One more look at the density plot before we start taking apart the features and looking towards prediction/classification.
 
 ```{r density-plot-3}
-#| eval: false
+
 p3 <- songs %>%
   select(c('genre', feature_names)) %>%
   pivot_longer(cols = feature_names) %>%
@@ -241,7 +242,8 @@ p3 <- songs %>%
   labs(title = 'Spotify Audio Feature Density - by Genre',
        x = '', y = 'density') +
   theme(axis.text.y = element_blank()) + 
-  scale_color_brewer(palette = 'Set1')
+  scale_color_brewer(palette = 'Set1') 
+# ggplotly(p3)
 ggsave("density_plot_3.png", p3)
 
 ```
