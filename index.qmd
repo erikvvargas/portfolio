@@ -1,11 +1,1 @@
-# Index {.unnumbered}
-
-This is a Quarto book.
-
-This is a line.
-
-To learn more about Quarto books visit <https://quarto.org/docs/books>.
-
-```{r}
-1 + 1
-```
+# Introduction {.unnumbered}
