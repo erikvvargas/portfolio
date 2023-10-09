@@ -1,19 +1,12 @@
 library(tidyverse)
 library(tidytext)
-library(geniusr)
+# library(geniusr)
 library(spotifyr)
 library(tm)
 library(wordcloud2)
 
+
 # Spotify and Genius API access tokens
-Sys.setenv(SPOTIFY_CLIENT_ID='ffc7fc15b44348488a6336af9513b08f')
-Sys.setenv(SPOTIFY_CLIENT_SECRET = 'a7f906e0ad0942e5afa9727d1c35f569')
-
-genius_client_id <- "M_qHdCoNg5V8rgWfYcJUyOX9K12oZwMiPMQZ-GOTuaUUUot0v92ekzgvmKRdJMZr"
-genius_secret <- "FTbcYoIWEUhAcpx1G_xZzOMumPlHINenKe0K_An9V5JQ-_MA0nFWsyzkexRn44XtV2sqUYXxC5__9Br-INaF3A"
-genius_access <- "7y1oQXalydudVoBHEbcaBrwFtHPllW9IbRtY4rhPNFfGtdeFgAb_d3UsxxXQR2Ia"
-
-Sys.setenv(GENIUS_API_TOKEN = '7y1oQXalydudVoBHEbcaBrwFtHPllW9IbRtY4rhPNFfGtdeFgAb_d3UsxxXQR2Ia')
 
 # access_token <- get_spotify_access_token()
 genius_token()
@@ -27,21 +20,23 @@ col.names <- c("track.duration_ms", "track.id", "track.name", "track.album.id",
 metal_23 <- metal_23[,col.names]
 
 metal_23$track.artists
-
+# remotes::install_github(repo="ewenme/geniusr", ref = remotes::github_pull(22))
+# the data comes out as lists of lists, need to unnest to get into
+# a usable format
 metal_23 <- unnest(metal_23, cols = c("track.artists")) %>% distinct(track.name, .keep_all = TRUE)
 
-
+?get_lyrics_search
 # get lyrics of any song and artist pair
-mire_lyrics <- get_lyrics_search(artist_name = "Beast", song_title = "The Acacia Strain") 
+song.lyrics <- geniusr::get_lyrics_search(artist_name = "The Acacia Strain", song_title = "Beast") 
 
 # lyrics come in single lines in a dataframe
 # this puts them into one continuous string for the sentiment
-mire_words <- mire_lyrics %>%
+song.words <- song.lyrics %>%
   unnest_tokens(word, line) %>% 
   select(song_name, word)
 
 # wordcloud of top 200 words
-mire_words %>% 
+song.words %>% 
   anti_join(get_stopwords()) %>% 
   count(word, sort = T) %>% 
   top_n(200) %>% 
@@ -51,7 +46,7 @@ mire_words %>%
 # create a word cloud
 make_word_cloud <- function(artist_name, song_title){
   cloud_lyrics <- get_lyrics_search(artist_name = artist_name, 
-                                   song_title = song_title) 
+                                    song_title = song_title) 
   
   cloud_words <- cloud_lyrics %>%
     unnest_tokens(word, line) %>% 

@@ -4,14 +4,14 @@
     "href": "index.html",
     "title": "Portfolio",
     "section": "",
-    "text": "Index\nThis is a Quarto book.\nThis is a line.\nTo learn more about Quarto books visit https://quarto.org/docs/books.\n\n1 + 1\n\n[1] 2"
+    "text": "Introduction"
   },
   {
     "objectID": "spotify_data.html",
     "href": "spotify_data.html",
     "title": "Spotify Data Analysis",
     "section": "",
-    "text": "Exploratory Data Analysis\nPerforming classification analysis on 8 genres leads to poor accuracy. While each song has many features, the differences may be too small to meaningfully differentiate one genre from another. However, there are still genres that we could certainly recognize as being starkly different. Metal happens to be my favorite genre, but I do listen to country from time to time and it would be hard to mistake one song from each genre for the other. I’ll break this experiment out into two parts:"
+    "text": "Exploratory Data Analysis\nDistribution of Song Counts by Genre\n\n\nGenre\nCount\n\n\n\n\ncountry\n4282\n\n\nedm\n4696\n\n\nlatin\n3644\n\n\nmetal\n4990\n\n\npop\n5368\n\n\nr&b\n3924\n\n\nrap\n4751\n\n\nrock\n4265\nPerforming classification analysis on 8 genres leads to poor accuracy. While each song has many features, the differences may be too small to meaningfully differentiate one genre from another. However, there are still genres that we could certainly recognize as being starkly different. Metal happens to be my favorite genre, but I do listen to country from time to time and it would be hard to mistake one song from each genre for the other. I’ll break this experiment out into two parts:"
   },
   {
     "objectID": "spotify_data.html#metal-and-nonmetal",
@@ -25,7 +25,7 @@
     "href": "spotify_data.html#metal-and-country",
     "title": "Spotify Data Analysis",
     "section": "Metal and Country",
-    "text": "Metal and Country\n\n\n\nStarting with logistic regression.\n\n\n\nPredicted classes and performance.\n\n\nConfusion Matrix and Statistics\n\n          Reference\nPrediction metal country\n   metal    1276     117\n   country   222    1167\n                                          \n               Accuracy : 0.8781          \n                 95% CI : (0.8654, 0.8901)\n    No Information Rate : 0.5385          \n    P-Value [Acc > NIR] : < 2.2e-16       \n                                          \n                  Kappa : 0.7563          \n                                          \n Mcnemar's Test P-Value : 1.618e-08       \n                                          \n            Sensitivity : 0.8518          \n            Specificity : 0.9089          \n         Pos Pred Value : 0.9160          \n         Neg Pred Value : 0.8402          \n             Prevalence : 0.5385          \n         Detection Rate : 0.4587          \n   Detection Prevalence : 0.5007          \n      Balanced Accuracy : 0.8803          \n                                          \n       'Positive' Class : metal           \n                                          \n\n\nRandom forest example.\n\n\n         \n          country metal\n  country    1180   104\n  metal       194  1304\n\n\n[1] 0.8842559\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nThomas, Charlie. 2022. “Spotifyr Documentation.” 2022. http://www.rcharlie.com/spotifyr/."
+    "text": "Metal and Country\nStarting with logistic regression.\nPredicted classes and performance.\n\n\nConfusion Matrix and Statistics\n\n          Reference\nPrediction metal country\n   metal    1234     152\n   country   237    1159\n                                          \n               Accuracy : 0.8602          \n                 95% CI : (0.8467, 0.8729)\n    No Information Rate : 0.5288          \n    P-Value [Acc &gt; NIR] : &lt; 2.2e-16       \n                                          \n                  Kappa : 0.7204          \n                                          \n Mcnemar's Test P-Value : 2.054e-05       \n                                          \n            Sensitivity : 0.8389          \n            Specificity : 0.8841          \n         Pos Pred Value : 0.8903          \n         Neg Pred Value : 0.8302          \n             Prevalence : 0.5288          \n         Detection Rate : 0.4436          \n   Detection Prevalence : 0.4982          \n      Balanced Accuracy : 0.8615          \n                                          \n       'Positive' Class : metal           \n                                          \n\n\nRandom forest example.\n\n\n         \n          country metal\n  country    1175   136\n  metal       204  1267\n\n\n[1] 0.8842559\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nThomas, Charlie. 2022. “Spotifyr Documentation.” 2022. http://www.rcharlie.com/spotifyr/."
   },
   {
     "objectID": "references.html",
