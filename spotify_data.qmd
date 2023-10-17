@@ -44,7 +44,9 @@ load("all_data_saved.RData")
 # metal.nonmetal <- readRDS("data/metal_nonmetal_split.rds")
 # songs <- readRDS("data/songs_final.rds")
 
+# list of all objects to save in a vector
 data_saver <- c("s.dat.1", "s.dat.2", "songs", "metal.nonmetal")
+# save all objects into one file for use later
 save(list = data_saver, file = "all_data_saved.RData")
 
 ```
@@ -190,7 +192,7 @@ p1 <- s.dat.1 %>%
   ggplot(aes(x = value)) +
   geom_density(aes(color = genre), alpha = 0.9) +
   facet_wrap(~name, ncol = 3, scales = 'free') +
-  labs(title = 'Spotify Audio Feature Density - by Genre',
+  labs(title = 'Spotify Audio Feature Density by Genre',
        x = '', y = 'density') +
   theme(axis.text.y = element_blank()) + 
   scale_color_brewer(palette = 'Set1')
@@ -209,7 +211,7 @@ p2 <- s.dat.2 %>%
   ggplot(aes(x = value)) +
   geom_density(aes(color = genre), alpha = 0.9) +
   facet_wrap(~name, ncol = 3, scales = 'free') +
-  labs(title = 'Spotify Audio Feature Density - by Genre',
+  labs(title = 'Spotify Audio Feature Density by Genre',
        x = '', y = 'density') +
   theme(axis.text.y = element_blank()) + 
   scale_color_brewer(palette = 'Set1')
@@ -239,7 +241,7 @@ p3 <- songs %>%
   ggplot(aes(x = value)) +
   geom_density(aes(color = genre), alpha = 0.9) +
   facet_wrap(~name, ncol = 3, scales = 'free') +
-  labs(title = 'Spotify Audio Feature Density - by Genre',
+  labs(title = 'Spotify Audio Feature Density by Genre',
        x = '', y = 'density') +
   theme(axis.text.y = element_blank()) + 
   scale_color_brewer(palette = 'Set1') 
