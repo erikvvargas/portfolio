@@ -11,15 +11,12 @@ book:
   repo-url: https://github.com/erikvvargas/portfolio
   sidebar:
     tools:
-      - icon: share-fill
-        href: https://erik-king-vargas.carrd.co/
+      # - icon: share-fill
+      #   href: https://erik-king-vargas.carrd.co/
       - icon: linkedin
-        href: https://www.linkedin.com/in/erikkingvargas/
+        href: https://www.linkedin.com/in/erikvvargas/
       - icon: envelope
-        href: mailto:erik.king.vargas@gmail.com
-  # links:
-  #   - icon: rocket-takeoff
-  #   href: https://erik-king-vargas.carrd.co/
+        href: mailto:erikvvargas@gmail.com
   chapters:
     - index.qmd
     - spotify_data.qmd
