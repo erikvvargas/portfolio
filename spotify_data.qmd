@@ -237,6 +237,7 @@ One more look at the density plot before we start taking apart the features and 
 
 p3 <- songs %>%
   select(c('genre', feature_names)) %>%
+  # mutate(speechiness = log(acousticness)) %>% 
   pivot_longer(cols = feature_names) %>%
   ggplot(aes(x = value)) +
   geom_density(aes(color = genre), alpha = 0.9) +
@@ -246,8 +247,8 @@ p3 <- songs %>%
   theme(axis.text.y = element_blank()) + 
   scale_color_brewer(palette = 'Set1') 
 # ggplotly(p3)
-ggsave("density_plot_3.png", p3)
-
+# ggsave("density_plot_3.png", p3)
+p3
 ```
 
 ![](figs/density_plot_3.png)
@@ -302,7 +303,9 @@ songs %>%
 
 ```{r split1}
 # split with all genres
-split1 <- initial_split(songs[feature_names], prop = .7) # samples index 
+songs.short <- songs[predictors]
+
+split1 <- initial_split(songs.short, prop = .7) # samples index 
 
 train1 <- training(split1)
 test1 <- testing(split1)
@@ -311,6 +314,10 @@ test1 <- testing(split1)
 
 ```{r}
 # split with metal and nonmetal
+metal.short <- metal.nonmetal[c("metal", "key", "mode", "danceability",
+                                "energy", "loudness", "speechiness", 
+                                "acousticness", "instrumentalness", 
+                                "valence", "tempo", "duration", "liveness")]
 split2 <- initial_split(metal.nonmetal, prop = .7) # samples index 
 
 train2 <- training(split2)
